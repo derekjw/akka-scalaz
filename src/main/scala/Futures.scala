@@ -47,5 +47,9 @@ object AkkaFutures {
     }
   }
 
+  implicit def FuturePure: Pure[Future] = new Pure[Future] {
+    def pure[A](a: => A) = Futures.future(5000)(a)
+  }
+
   implicit val FutureApply = FunctorBindApply[Future]
 }
