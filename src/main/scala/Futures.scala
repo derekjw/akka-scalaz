@@ -3,7 +3,7 @@ package akka.scalaz
 import scalaz._
 import Scalaz._
 
-import akka.actor.Actor.spawn
+import akka.actor.Actor.{spawn, TIMEOUT}
 import akka.dispatch._
 
 import java.util.concurrent.TimeUnit
@@ -48,7 +48,7 @@ object AkkaFutures {
   }
 
   implicit def FuturePure: Pure[Future] = new Pure[Future] {
-    def pure[A](a: => A) = Futures.future(5000)(a)
+    def pure[A](a: => A) = Futures.future(TIMEOUT)(a)
   }
 
   implicit val FutureApply = FunctorBindApply[Future]

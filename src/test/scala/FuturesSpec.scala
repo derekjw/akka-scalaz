@@ -6,6 +6,7 @@ import scalaz._
 import Scalaz._
 
 import akka.dispatch._
+import akka.actor.Actor.TIMEOUT
 import Futures.future
 
 class AkkaFuturesSpec extends Specification {
@@ -13,7 +14,7 @@ class AkkaFuturesSpec extends Specification {
 
   "akka futures" should {
     "have scalaz functor instance" in {
-      val f1 = future(5000)(5 * 5)
+      val f1 = future(TIMEOUT)(5 * 5)
       val f2 = f1 ∘ (_ * 2)
       val f3 = f2 ∘ (_ * 10)
       val f4 = f1 ∘ (_ / 0)
@@ -25,11 +26,11 @@ class AkkaFuturesSpec extends Specification {
       f5.await.resultOrException must throwA(new ArithmeticException("/ by zero"))
     }
     "have scalaz bind instance" in {
-      val f1 = future(5000)(5 * 5)
-      val f2 = f1 flatMap (x => future(5000)(x * 2))
-      val f3 = f2 flatMap (x => future(5000)(x * 10))
-      val f4 = f1 flatMap (x => future(5000)(x / 0))
-      val f5 = f4 flatMap (x => future(5000)(x * 10))
+      val f1 = future(TIMEOUT)(5 * 5)
+      val f2 = f1 flatMap (x => future(TIMEOUT)(x * 2))
+      val f3 = f2 flatMap (x => future(TIMEOUT)(x * 10))
+      val f4 = f1 flatMap (x => future(TIMEOUT)(x / 0))
+      val f5 = f4 flatMap (x => future(TIMEOUT)(x * 10))
 
       f2.await.resultOrException must_== Some(50)
       f3.await.resultOrException must_== Some(500)
@@ -37,7 +38,7 @@ class AkkaFuturesSpec extends Specification {
       f5.await.resultOrException must throwA(new ArithmeticException("/ by zero"))
     }
     "have scalaz apply instance" in {
-      val f1 = future(5000)(5 * 5)
+      val f1 = future(TIMEOUT)(5 * 5)
       val f2 = f1 ∘ (_ * 2)
       val f3 = f2 ∘ (_ / 0)
 
@@ -51,14 +52,14 @@ class AkkaFuturesSpec extends Specification {
 
       def fib(n: Int): Future[Int] =
         if (n < 30)
-          future(0)(seqFib(n))
+          future(TIMEOUT)(seqFib(n))
         else
           fib(n - 1).<**>(fib(n - 2))(_ + _)
 
       fib(40).awaitBlocking.result must_== Some(102334155)
     }
     "sequence a list" in {
-      val list = (1 to 100).toList.map(future(5000)(_)).map(_.map(10 *))
+      val list = (1 to 100).toList.map(future(TIMEOUT)(_)).map(_.map(10 *))
       list.sequence.await.result must_== Some((10 to 1000 by 10).toList)
     }
   }
