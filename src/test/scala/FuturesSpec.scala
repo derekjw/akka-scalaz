@@ -56,7 +56,7 @@ class AkkaFuturesSpec extends Specification {
         else
           fib(n - 1).<**>(fib(n - 2))(_ + _)
 
-      fib(40).awaitBlocking.result must_== Some(102334155)
+      fib(40).await.result must_== Some(102334155)
     }
     "sequence a list" in {
       val list = (1 to 100).toList.map(future(TIMEOUT)(_)).map(_.map(10 *))
