@@ -52,4 +52,17 @@ object AkkaFutures {
   }
 
   implicit val FutureApply = FunctorBindApply[Future]
+
+  implicit def FutureTo[A](f: Future[A]): FutureW[A] = new FutureW[A] {
+    val value = f
+  }
+}
+
+sealed trait FutureW[A] extends PimpedType[Future[A]] {
+  def toValidation: Validation[Throwable, A] =
+    if (value.await.result.isDefined) {
+      success(value.result.get)
+    } else {
+      failure(value.exception.get)
+    }
 }
