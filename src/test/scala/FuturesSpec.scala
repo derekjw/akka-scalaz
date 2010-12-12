@@ -59,7 +59,7 @@ class AkkaFuturesSpec extends Specification {
     }
     "sequence a list" in {
       val list = (1 to 100).toList.map(future(5000)(_)).map(_.map(10 *))
-      list.sequence.await.result must_== Some((1 to 100).toList.map(10 *))
+      list.sequence.await.result must_== Some((10 to 1000 by 10).toList)
     }
   }
 }
