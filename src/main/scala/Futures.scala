@@ -1,4 +1,4 @@
-package net.fyrie.scalaz
+package akka.scalaz
 
 import scalaz._
 import Scalaz._

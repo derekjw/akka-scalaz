@@ -1,5 +1,4 @@
-
-package net.fyrie.scalaz
+package akka.scalaz
 
 import org.specs._
 
