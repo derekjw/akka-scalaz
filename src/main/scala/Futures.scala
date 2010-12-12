@@ -56,6 +56,10 @@ object AkkaFutures {
   implicit def FutureTo[A](f: Future[A]): FutureW[A] = new FutureW[A] {
     val value = f
   }
+
+  implicit def CompletableFutureTo[A](f: CompletableFuture[A]): CompletableFutureW[A] = new CompletableFutureW[A] {
+    val value = f
+  }
 }
 
 sealed trait FutureW[A] extends PimpedType[Future[A]] {
@@ -65,4 +69,9 @@ sealed trait FutureW[A] extends PimpedType[Future[A]] {
     } else {
       failure(value.exception.get)
     }
+}
+
+sealed trait CompletableFutureW[A] extends PimpedType[CompletableFuture[A]] {
+  def completeWith(validation: Validation[Throwable, A]): Unit =
+    validation.fold(value.completeWithException, value.completeWithResult)
 }
