@@ -14,21 +14,8 @@ object AkkaFutures {
   implicit def FutureFunctor: Functor[Future] = new Functor[Future] {
     def fmap[A, B](r: Future[A], f: A => B): Future[B] = {
       val fb = new DefaultCompletableFuture[B](nanosToMillis(r.timeoutInNanos))
-      r onComplete { fa =>
-        if (fa.result.isDefined) {
-          fa.result.foreach{
-            a => spawn({
-              try {
-                fb.completeWithResult(f(a))
-              } catch {
-                case e => fb.completeWithException(e)
-              }
-            })
-          }
-        } else {
-          fa.exception.foreach(fb.completeWithException)
-        }
-      }
+      r onComplete (fa => fa.result.fold(a => spawn(try {fb.completeWithResult(f(a))} catch {case e => fb.completeWithException(e)}),
+                                         fa.exception.foreach(fb.completeWithException)))
       fb
     }
   }
@@ -36,13 +23,8 @@ object AkkaFutures {
   implicit def FutureBind: Bind[Future] = new Bind[Future] {
     def bind[A, B](r: Future[A], f: A => Future[B]) = {
       val fb = new DefaultCompletableFuture[B](nanosToMillis(r.timeoutInNanos))
-      r onComplete { fa =>
-        if (fa.result.isDefined) {
-          fa.result.foreach(a => f(a).onComplete(fb.completeWith(_)))
-        } else {
-          fa.exception.foreach(fb.completeWithException)
-        }
-      }
+      r onComplete (fa => fa.result.fold(f(_).onComplete(fb.completeWith(_)),
+                                         fa.exception.foreach(fb.completeWithException)))
       fb
     }
   }
