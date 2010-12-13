@@ -63,8 +63,22 @@ class AkkaFuturesSpec extends Specification {
     }
 
     "sequence a list" in {
-      val list = (1 to 100).toList.map(future(TIMEOUT)(_)).map(_.map(10 *))
+      val list = (1 to 100).toList.fpure[Future].map(_.asMA.map(10 *))
       list.sequence.await.result must_== Some((10 to 1000 by 10).toList)
+    }
+
+    "map a list in parallel" in {
+      (1 to 100).toList.futureMap(10*).await.result must_== Some((10 to 1000 by 10).toList)
+    }
+
+    "reduce a list of futures" in {
+      val list = (1 to 100).toList.fpure[Future]
+      list.reduceLeft((a,b) => (a |@| b)(_ + _)).await.result must_== Some(5050)
+    }
+
+    "have a resetable timeout" in {
+      future(5000)("test").timeout(100).await mustNot throwA(new FutureTimeoutException("Futures timed out after [100] milliseconds"))
+      future(5000)({Thread.sleep(500);"test"}).timeout(100).await must throwA(new FutureTimeoutException("Futures timed out after [100] milliseconds"))
     }
 
     // Taken from Haskell example, performance is very poor, this is only here as a test

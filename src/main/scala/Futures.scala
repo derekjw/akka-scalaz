@@ -52,6 +52,10 @@ object AkkaFutures {
   implicit def CompletableFutureTo[A](f: CompletableFuture[A]): CompletableFutureW[A] = new CompletableFutureW[A] {
     val value = f
   }
+
+  implicit def maFutureImplicit[M[_], A](a: M[A]): MAFuture[M, A] = new MAFuture[M, A] {
+    val value = a
+  }
 }
 
 sealed trait FutureW[A] extends PimpedType[Future[A]] {
@@ -61,9 +65,25 @@ sealed trait FutureW[A] extends PimpedType[Future[A]] {
     } else {
       failure(value.exception.get)
     }
+
+  def timeout(t: Long): Future[A] = {
+    val f = new DefaultCompletableFuture[A](t)
+    value onComplete (f.completeWith(_))
+    f
+  }
 }
 
 sealed trait CompletableFutureW[A] extends PimpedType[CompletableFuture[A]] {
   def completeWith(validation: Validation[Throwable, A]): Unit =
     validation.fold(value.completeWithException, value.completeWithResult)
+}
+
+sealed trait MAFuture[M[_], A] extends PimpedType[M[A]] {
+  import AkkaFutures._
+
+  def futureMap[B](f: A => B)(implicit t: Traverse[M]): Future[M[B]] =
+    value.map(a => Futures.future(TIMEOUT)(f(a))).sequence
+
+  def futureBind[B](f: A => M[B])(implicit m: Monad[M], t: Traverse[M]): Future[M[B]] =
+    futureMap(f).asMA.map(((_: MA[M, M[B]]) μ) compose (ma(_)))
 }
