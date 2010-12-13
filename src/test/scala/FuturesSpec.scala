@@ -25,6 +25,7 @@ class AkkaFuturesSpec extends Specification {
       f4.await.resultOrException must throwA(new ArithmeticException("/ by zero"))
       f5.await.resultOrException must throwA(new ArithmeticException("/ by zero"))
     }
+
     "have scalaz bind instance" in {
       val f1 = future(TIMEOUT)(5 * 5)
       val f2 = f1 flatMap (x => future(TIMEOUT)(x * 2))
@@ -37,6 +38,7 @@ class AkkaFuturesSpec extends Specification {
       f4.await.resultOrException must throwA(new ArithmeticException("/ by zero"))
       f5.await.resultOrException must throwA(new ArithmeticException("/ by zero"))
     }
+
     "have scalaz apply instance" in {
       val f1 = future(TIMEOUT)(5 * 5)
       val f2 = f1 ∘ (_ * 2)
@@ -47,6 +49,7 @@ class AkkaFuturesSpec extends Specification {
       (f1 |@| f2 |@| f3)(_ * _ * _).await.resultOrException must throwA(new ArithmeticException("/ by zero"))
       (f3 |@| f2 |@| f1)(_ * _ * _).await.resultOrException must throwA(new ArithmeticException("/ by zero"))
     }
+
     "calculate fib seq" in {
       def seqFib(n: Int): Int = if (n < 2) n else seqFib(n - 1) + seqFib(n - 2)
 
@@ -58,9 +61,23 @@ class AkkaFuturesSpec extends Specification {
 
       fib(40).await.result must_== Some(102334155)
     }
+
     "sequence a list" in {
       val list = (1 to 100).toList.map(future(TIMEOUT)(_)).map(_.map(10 *))
       list.sequence.await.result must_== Some((10 to 1000 by 10).toList)
+    }
+
+    // Taken from Haskell example, performance is very poor, this is only here as a test
+    "quicksort a list" in {
+      val rnd = new scala.util.Random(1)
+      val list = List.fill(1000)(rnd.nextInt)
+
+      def qsort[T](in: List[T])(implicit ord: math.Ordering[T]): Future[List[T]] = in match {
+        case Nil => nil.pure[Future]
+        case x :: xs => (qsort(xs.filter(ord.lt(_,x))) |@| x.pure[Future] |@| qsort(xs.filter(ord.gteq(_,x))))(_ ::: _ :: _)
+      }
+
+      qsort(list).await.result must beSome[List[Int]].which(_ == list.sorted)
     }
   }
 }
