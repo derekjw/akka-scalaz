@@ -14,7 +14,7 @@ object AkkaFutures {
   implicit object FutureFunctor extends Functor[Future] {
     def fmap[A, B](r: Future[A], f: A => B): Future[B] = {
       val fb = new DefaultCompletableFuture[B](nanosToMillis(r.timeoutInNanos))
-      r onComplete (fa => fa.result.fold(a => spawn(try {fb.completeWithResult(f(a))} catch {case e => fb.completeWithException(e)}),
+      r onComplete (fa => fa.result.cata(a => spawn(try {fb.completeWithResult(f(a))} catch {case e => fb.completeWithException(e)}),
                                          fa.exception.foreach(fb.completeWithException)))
       fb
     }
@@ -23,7 +23,7 @@ object AkkaFutures {
   implicit object FutureBind extends Bind[Future] {
     def bind[A, B](r: Future[A], f: A => Future[B]) = {
       val fb = new DefaultCompletableFuture[B](nanosToMillis(r.timeoutInNanos))
-      r onComplete (fa => fa.result.fold(f(_).onComplete(fb.completeWith(_)),
+      r onComplete (fa => fa.result.cata(f(_).onComplete(fb.completeWith(_)),
                                          fa.exception.foreach(fb.completeWithException)))
       fb
     }
@@ -85,5 +85,5 @@ sealed trait MAFuture[M[_], A] extends PimpedType[M[A]] {
     value.map(a => Futures.future(TIMEOUT)(f(a))).sequence
 
   def futureBind[B](f: A => M[B])(implicit m: Monad[M], t: Traverse[M]): Future[M[B]] =
-    futureMap(f).asMA.map(((_: MA[M, M[B]]) μ) compose (ma(_)))
+    futureMap(f) ∘ (((_: MA[M, M[B]]) μ) compose (ma(_)))
 }

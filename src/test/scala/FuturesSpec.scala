@@ -63,7 +63,7 @@ class AkkaFuturesSpec extends Specification {
     }
 
     "sequence a list" in {
-      val list = (1 to 100).toList.fpure[Future].map(_.asMA.map(10 *))
+      val list = (1 to 100).toList.map(_.pure[Future] ∘ (10 *))
       list.sequence.await.result must_== Some((10 to 1000 by 10).toList)
     }
 
@@ -72,7 +72,7 @@ class AkkaFuturesSpec extends Specification {
     }
 
     "reduce a list of futures" in {
-      val list = (1 to 100).toList.fpure[Future]
+      val list = (1 to 100).toList.map(_.pure[Future])
       list.reduceLeft((a,b) => (a |@| b)(_ + _)).await.result must_== Some(5050)
     }
 
