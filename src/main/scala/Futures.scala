@@ -11,7 +11,7 @@ import java.util.concurrent.TimeUnit
 object AkkaFutures {
   private def nanosToMillis(in: Long): Long = TimeUnit.NANOSECONDS.toMillis(in)
 
-  implicit def FutureFunctor: Functor[Future] = new Functor[Future] {
+  implicit object FutureFunctor extends Functor[Future] {
     def fmap[A, B](r: Future[A], f: A => B): Future[B] = {
       val fb = new DefaultCompletableFuture[B](nanosToMillis(r.timeoutInNanos))
       r onComplete (fa => fa.result.fold(a => spawn(try {fb.completeWithResult(f(a))} catch {case e => fb.completeWithException(e)}),
@@ -20,7 +20,7 @@ object AkkaFutures {
     }
   }
 
-  implicit def FutureBind: Bind[Future] = new Bind[Future] {
+  implicit object FutureBind extends Bind[Future] {
     def bind[A, B](r: Future[A], f: A => Future[B]) = {
       val fb = new DefaultCompletableFuture[B](nanosToMillis(r.timeoutInNanos))
       r onComplete (fa => fa.result.fold(f(_).onComplete(fb.completeWith(_)),
@@ -29,7 +29,7 @@ object AkkaFutures {
     }
   }
 
-  implicit def FuturePure: Pure[Future] = new Pure[Future] {
+  implicit object FuturePure extends Pure[Future] {
     def pure[A](a: => A) = {
       val f = new DefaultCompletableFuture[A](TIMEOUT)
       try { f completeWithResult a } catch { case e => f completeWithException e }
@@ -41,7 +41,7 @@ object AkkaFutures {
 
   implicit val FutureApply = FunctorBindApply[Future]
 
-  implicit def FutureEach: Each[Future] = new Each[Future] {
+  implicit object FutureEach extends Each[Future] {
     def each[A](e: Future[A], f: A => Unit) = e onComplete (_.result foreach f)
   }
 
