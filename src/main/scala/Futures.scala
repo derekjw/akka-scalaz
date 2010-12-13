@@ -53,6 +53,10 @@ object AkkaFutures {
 
   implicit val FutureApply = FunctorBindApply[Future]
 
+  implicit def FutureEach: Each[Future] = new Each[Future] {
+    def each[A](e: Future[A], f: A => Unit) = e onComplete (_.result foreach f)
+  }
+
   implicit def FutureTo[A](f: Future[A]): FutureW[A] = new FutureW[A] {
     val value = f
   }
