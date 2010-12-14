@@ -30,13 +30,7 @@ object AkkaFutures {
   }
 
   implicit object FuturePure extends Pure[Future] {
-    def pure[A](a: => A) = {
-      val f = new DefaultCompletableFuture[A](TIMEOUT)
-      try { f completeWithResult a } catch { case e => f completeWithException e }
-      f
-    }
-
-    //def pure[A](a: => A) = Futures.future(TIMEOUT)(a)
+    def pure[A](a: => A) = Futures.future(TIMEOUT)(a)
   }
 
   implicit val FutureApply = FunctorBindApply[Future]
