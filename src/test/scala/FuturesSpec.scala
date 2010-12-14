@@ -48,6 +48,8 @@ class AkkaFuturesSpec extends Specification {
       (f1 ⊛ f2).tupled.await.resultOrException must_== Some((25,50))
       (f1 ⊛ f2 ⊛ f3)(_ * _ * _).await.resultOrException must throwA(new ArithmeticException("/ by zero"))
       (f3 ⊛ f2 ⊛ f1)(_ * _ * _).await.resultOrException must throwA(new ArithmeticException("/ by zero"))
+
+      (f1 <|**|> (f2, f1)).await.resultOrException must_== Some((25,50,25))
     }
 
     "calculate fib seq" in {
@@ -74,6 +76,11 @@ class AkkaFuturesSpec extends Specification {
     "reduce a list of futures" in {
       val list = (1 to 100).toList.map(_.pure[Future])
       list.reduceLeft((a,b) => (a ⊛ b)(_ + _)).await.result must_== Some(5050)
+    }
+
+    "fold into a future" in {
+      val list = (1 to 100).toList
+      list.foldLeftM(0)((b,a) => future(TIMEOUT)(b + a)).await.result must_== Some(5050)
     }
 
     "have a resetable timeout" in {
