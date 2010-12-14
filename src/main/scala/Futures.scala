@@ -5,6 +5,7 @@ import Scalaz._
 
 import akka.actor.Actor.{spawn, TIMEOUT}
 import akka.dispatch._
+import Futures.future
 
 import java.util.concurrent.TimeUnit
 
@@ -76,7 +77,7 @@ sealed trait MAFuture[M[_], A] extends PimpedType[M[A]] {
   import AkkaFutures._
 
   def futureMap[B](f: A => B)(implicit t: Traverse[M]): Future[M[B]] =
-    value.map(a => Futures.future(TIMEOUT)(f(a))).sequence
+    value map (a => future(TIMEOUT)(f(a))) sequence
 
   def futureBind[B](f: A => M[B])(implicit m: Monad[M], t: Traverse[M]): Future[M[B]] =
     futureMap(f) ∘ (((_: MA[M, M[B]]) μ) compose (ma(_)))
