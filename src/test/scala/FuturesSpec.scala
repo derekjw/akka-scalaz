@@ -28,10 +28,10 @@ class AkkaFuturesSpec extends Specification {
 
     "have scalaz bind instance" in {
       val f1 = future(TIMEOUT)(5 * 5)
-      val f2 = f1 flatMap (x => future(TIMEOUT)(x * 2))
-      val f3 = f2 flatMap (x => future(TIMEOUT)(x * 10))
-      val f4 = f1 flatMap (x => future(TIMEOUT)(x / 0))
-      val f5 = f4 flatMap (x => future(TIMEOUT)(x * 10))
+      val f2 = f1 >>= (x ⇒ future(TIMEOUT)(x * 2))
+      val f3 = f2 >>= (x ⇒ future(TIMEOUT)(x * 10))
+      val f4 = f1 >>= (x ⇒ future(TIMEOUT)(x / 0))
+      val f5 = f4 >>= (x ⇒ future(TIMEOUT)(x * 10))
 
       f2.await.resultOrException must_== Some(50)
       f3.await.resultOrException must_== Some(500)
@@ -44,10 +44,10 @@ class AkkaFuturesSpec extends Specification {
       val f2 = f1 ∘ (_ * 2)
       val f3 = f2 ∘ (_ / 0)
 
-      (f1 |@| f2)(_ * _).await.resultOrException must_== Some(1250)
-      (f1 |@| f2).tupled.await.resultOrException must_== Some((25,50))
-      (f1 |@| f2 |@| f3)(_ * _ * _).await.resultOrException must throwA(new ArithmeticException("/ by zero"))
-      (f3 |@| f2 |@| f1)(_ * _ * _).await.resultOrException must throwA(new ArithmeticException("/ by zero"))
+      (f1 ⊛ f2)(_ * _).await.resultOrException must_== Some(1250)
+      (f1 ⊛ f2).tupled.await.resultOrException must_== Some((25,50))
+      (f1 ⊛ f2 ⊛ f3)(_ * _ * _).await.resultOrException must throwA(new ArithmeticException("/ by zero"))
+      (f3 ⊛ f2 ⊛ f1)(_ * _ * _).await.resultOrException must throwA(new ArithmeticException("/ by zero"))
     }
 
     "calculate fib seq" in {
@@ -73,7 +73,7 @@ class AkkaFuturesSpec extends Specification {
 
     "reduce a list of futures" in {
       val list = (1 to 100).toList.map(_.pure[Future])
-      list.reduceLeft((a,b) => (a |@| b)(_ + _)).await.result must_== Some(5050)
+      list.reduceLeft((a,b) => (a ⊛ b)(_ + _)).await.result must_== Some(5050)
     }
 
     "have a resetable timeout" in {
@@ -87,8 +87,8 @@ class AkkaFuturesSpec extends Specification {
       val list = List.fill(1000)(rnd.nextInt)
 
       def qsort[T](in: List[T])(implicit ord: math.Ordering[T]): Future[List[T]] = in match {
-        case Nil => nil.pure[Future]
-        case x :: xs => (qsort(xs.filter(ord.lt(_,x))) |@| x.pure[Future] |@| qsort(xs.filter(ord.gteq(_,x))))(_ ::: _ :: _)
+        case Nil ⇒ nil.pure[Future]
+        case x :: xs ⇒ (qsort(xs.filter(ord.lt(_,x))) ⊛ x.pure[Future] ⊛ qsort(xs.filter(ord.gteq(_,x))))(_ ::: _ :: _)
       }
 
       qsort(list).await.result must beSome[List[Int]].which(_ == list.sorted)
