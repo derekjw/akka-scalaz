@@ -55,11 +55,7 @@ object AkkaFutures {
 
 sealed trait FutureW[A] extends PimpedType[Future[A]] {
   def toValidation: Validation[Throwable, A] =
-    if (value.await.result.isDefined) {
-      success(value.result.get)
-    } else {
-      failure(value.exception.get)
-    }
+    value.await.result.cata(success(_), failure(value.exception.get))
 
   def timeout(t: Long): Future[A] = {
     val f = new DefaultCompletableFuture[A](t)

@@ -12,9 +12,12 @@ import Futures.future
 class AkkaFuturesSpec extends Specification {
   import AkkaFutures._
 
+  // Simulate some work
+  def f[A](a: => A):Future[A] = future(TIMEOUT)({Thread.sleep(10);a})
+
   "akka futures" should {
     "have scalaz functor instance" in {
-      val f1 = future(TIMEOUT)(5 * 5)
+      val f1 = f(5 * 5)
       val f2 = f1 ∘ (_ * 2)
       val f3 = f2 ∘ (_ * 10)
       val f4 = f1 ∘ (_ / 0)
@@ -27,11 +30,11 @@ class AkkaFuturesSpec extends Specification {
     }
 
     "have scalaz bind instance" in {
-      val f1 = future(TIMEOUT)(5 * 5)
-      val f2 = f1 >>= (x ⇒ future(TIMEOUT)(x * 2))
-      val f3 = f2 >>= (x ⇒ future(TIMEOUT)(x * 10))
-      val f4 = f1 >>= (x ⇒ future(TIMEOUT)(x / 0))
-      val f5 = f4 >>= (x ⇒ future(TIMEOUT)(x * 10))
+      val f1 = f(5 * 5)
+      val f2 = f1 >>= (x => f(x * 2))
+      val f3 = f2 >>= (x => f(x * 10))
+      val f4 = f1 >>= (x => f(x / 0))
+      val f5 = f4 >>= (x => f(x * 10))
 
       f2.await.resultOrException must_== Some(50)
       f3.await.resultOrException must_== Some(500)
@@ -40,7 +43,7 @@ class AkkaFuturesSpec extends Specification {
     }
 
     "have scalaz apply instance" in {
-      val f1 = future(TIMEOUT)(5 * 5)
+      val f1 = f(5 * 5)
       val f2 = f1 ∘ (_ * 2)
       val f3 = f2 ∘ (_ / 0)
 
@@ -57,9 +60,9 @@ class AkkaFuturesSpec extends Specification {
 
       def fib(n: Int): Future[Int] =
         if (n < 30)
-          future(TIMEOUT)(seqFib(n))
+          f(seqFib(n))
         else
-          fib(n - 1).<**>(fib(n - 2))(_ + _)
+          (fib(n - 1) ⊛ fib(n - 2))(_ + _)
 
       fib(40).await.result must_== Some(102334155)
     }
@@ -80,12 +83,37 @@ class AkkaFuturesSpec extends Specification {
 
     "fold into a future" in {
       val list = (1 to 100).toList
-      list.foldLeftM(0)((b,a) => future(TIMEOUT)(b + a)).await.result must_== Some(5050)
+      list.foldLeftM(0)((b,a) => f(b + a)).await.result must_== Some(5050)
     }
 
     "have a resetable timeout" in {
-      future(5000)("test").timeout(100).await mustNot throwA(new FutureTimeoutException("Futures timed out after [100] milliseconds"))
-      future(5000)({Thread.sleep(500);"test"}).timeout(100).await must throwA(new FutureTimeoutException("Futures timed out after [100] milliseconds"))
+      f("test").timeout(100).await mustNot throwA(new FutureTimeoutException("Futures timed out after [100] milliseconds"))
+      f({Thread.sleep(500);"test"}).timeout(100).await must throwA(new FutureTimeoutException("Futures timed out after [100] milliseconds"))
+    }
+
+    "convert to Validation" in {
+      val r1 = (f("34".toInt) ⊛ f("150".toInt) ⊛ f("12".toInt))(_ + _ + _)
+      r1.toValidation must_== Success(196)
+      val r2 = (f("34".toInt) ⊛ f("hello".toInt) ⊛ f("12".toInt))(_ + _ + _)
+      r2.toValidation.fail.map(_.toString).validation must_== Failure("java.lang.NumberFormatException: For input string: \"hello\"")
+    }
+
+    "for-comprehension" in {
+      val r1 = for {
+        x1 <- f("34".toInt)
+        x2 <- f("150".toInt)
+        x3 <- f("12".toInt)
+      } yield x1 + x2 + x3
+
+      r1.await.resultOrException must_== Some(196)
+
+      val r2 = for {
+        x1 <- f("34".toInt)
+        x2 <- f("hello".toInt)
+        x3 <- f("12".toInt)
+      } yield x1 + x2 + x3
+
+      r2.await.resultOrException must throwA(new NumberFormatException("For input string: \"hello\""))
     }
 
     // Taken from Haskell example, performance is very poor, this is only here as a test
