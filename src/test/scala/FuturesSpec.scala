@@ -9,11 +9,12 @@ import akka.dispatch._
 import akka.actor.Actor.TIMEOUT
 import Futures.future
 
-class AkkaFuturesSpec extends Specification {
+import akka.util.Logging
+
+class AkkaFuturesSpec extends Specification with Logging {
   import AkkaFutures._
 
-  // Simulate some work
-  def f[A](a: => A):Future[A] = future(TIMEOUT)({Thread.sleep(10);a})
+  def f[A](a: => A):Future[A] = future(TIMEOUT)(a)
 
   "akka futures" should {
     "have scalaz functor instance" in {
@@ -128,5 +129,38 @@ class AkkaFuturesSpec extends Specification {
 
       qsort(list).await.result must beSome[List[Int]].which(_ == list.sorted)
     }
+
+    "shakespeare wordcount" in {
+      import java.io.{InputStreamReader, BufferedReader}
+      val reader = new BufferedReader(new InputStreamReader(getClass.getClassLoader.getResourceAsStream("shakespeare.txt")))
+
+      val lines = try {
+        Stream.continually(Option(reader.readLine)).filterNot(_ == Some("")).takeWhile(_.isDefined).grouped(10000).map(_.flatten.mkString(" ")).toList
+      } finally {
+        reader.close
+      }
+
+      val mapper: List[String] => List[Future[Map[String, Int]]] =
+        _.map(s => f(s.toLowerCase.filter(c => c.isLetterOrDigit || c.isSpaceChar).split(' ').groupBy(identity).mapValues(_.length)))
+
+      val reducer: List[Future[Map[String, Int]]] => Option[Future[Map[String, Int]]] =
+        _.reduceLeftOption((fa,fb) => (fa ⊛ fb)((ma,mb) => mb.foldLeft(ma)((a, b) => a + (b._1 -> (a.get(b._1).getOrElse(0) + b._2)))))
+
+      val result: Option[Future[Map[String, Int]]] => Option[Map[String, Int]] =
+        _.flatMap(_.await.result)
+
+      val wordcount: List[String] => Option[Map[String, Int]] =
+        list => result(reducer(mapper(list)))
+
+      bench("Wordcount")(wordcount(lines) must beSome.which(_ must haveSize(28344)))
+    }
   }
+
+  def bench[A](name: String)(a: => A): A = {
+    val startTime = System.currentTimeMillis
+    val result = a
+    val endTime = System.currentTimeMillis
+    log.info("%s took %dms", name, endTime - startTime)
+    result
+  } 
 }
