@@ -135,22 +135,22 @@ class AkkaFuturesSpec extends Specification with Logging {
       val reader = new BufferedReader(new InputStreamReader(getClass.getClassLoader.getResourceAsStream("shakespeare.txt")))
 
       val lines = try {
-        Stream.continually(Option(reader.readLine)).filterNot(_ == Some("")).takeWhile(_.isDefined).grouped(10000).map(_.flatten.mkString(" ")).toList
+        Stream.continually(Option(reader.readLine)).filterNot(_ == Some("")).takeWhile(_.isDefined).grouped(100).map(_.flatten.mkString(" ")).toList
       } finally {
         reader.close
       }
 
-      val mapper: List[String] => List[Future[Map[String, Int]]] =
-        _.map(s => f(s.toLowerCase.filter(c => c.isLetterOrDigit || c.isSpaceChar).split(' ').groupBy(identity).mapValues(_.length)))
+      def mapper(in: Seq[String]): Seq[Future[Seq[String]]] =
+        in.map(s => f(s.toLowerCase.filter(c => c.isLetterOrDigit || c.isSpaceChar).split(' ').toSeq))
 
-      val reducer: List[Future[Map[String, Int]]] => Option[Future[Map[String, Int]]] =
-        _.reduceLeftOption((fa,fb) => (fa ⊛ fb)((ma,mb) => mb.foldLeft(ma)((a, b) => a + (b._1 -> (a.get(b._1).getOrElse(0) + b._2)))))
+      def reducer(in: Seq[Future[Seq[String]]]): Future[Map[String, Int]] =
+        in.foldLeft(f(Map[String,Int]().withDefaultValue(0)))((fm,fl) => fm >>= (m => fl ∘ (_.foldLeft(m)((a, b) => a + (b -> (a(b) + 1))))))
 
-      val result: Option[Future[Map[String, Int]]] => Option[Map[String, Int]] =
-        _.flatMap(_.await.result)
+      def result(in: Future[Map[String, Int]]): Option[Map[String, Int]] =
+        in.await.result
 
-      val wordcount: List[String] => Option[Map[String, Int]] =
-        list => result(reducer(mapper(list)))
+      def wordcount(in: List[String]): Option[Map[String, Int]] =
+        result(reducer(mapper(in)))
 
       bench("Wordcount")(wordcount(lines) must beSome.which(_ must haveSize(28344)))
     }
