@@ -152,7 +152,9 @@ class AkkaFuturesSpec extends Specification with Logging {
       def wordcount(in: List[String]): Option[Map[String, Int]] =
         result(reducer(mapper(in)))
 
-      bench("Wordcount")(wordcount(lines) must beSome.which(_ must haveSize(28344)))
+      val wc = bench("Wordcount")(wordcount(lines))
+      wc must beSome.which(_ must haveSize(28344))
+      wc.flatMap(_.get("shakespeare")) must beSome.which(_ must_== 268)
     }
   }
 
