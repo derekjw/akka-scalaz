@@ -72,9 +72,9 @@ sealed trait CompletableFutureW[A] extends PimpedType[CompletableFuture[A]] {
 sealed trait MAFuture[M[_], A] extends PimpedType[M[A]] {
   import AkkaFutures._
 
-  def futureMap[B](f: A => B)(implicit t: Traverse[M]): Future[M[B]] =
-    value map (a => future(TIMEOUT)(f(a))) sequence
+  def futureMap[B](f: A => B)(implicit ft: Functor[M], t: Traverse[M]): Future[M[B]] =
+    ft.fmap(value,(a: A) => future(TIMEOUT)(f(a))).sequence
 
   def futureBind[B](f: A => M[B])(implicit m: Monad[M], t: Traverse[M]): Future[M[B]] =
-    futureMap(f) ∘ (((_: MA[M, M[B]]) μ) compose (ma(_)))
+    futureMap(f)(m,t).map(_.join)
 }

@@ -69,12 +69,15 @@ class AkkaFuturesSpec extends Specification with Logging {
     }
 
     "sequence a list" in {
-      val list = (1 to 100).toList.map(_.pure[Future] ∘ (10 *))
-      list.sequence.await.result must_== Some((10 to 1000 by 10).toList)
+      val result = (1 to 10000).toList.map(_.pure[Future] ∘ (10 *)).sequence.await.result
+      result.map(_.size) must_== Some(10000)
+      result.map(_.head) must_== Some(10)
     }
 
     "map a list in parallel" in {
-      (1 to 100).toList.futureMap(10*).await.result must_== Some((10 to 1000 by 10).toList)
+      val result = (1 to 10000).toList.futureMap(10*).await.result
+      result.map(_.size) must_== Some(10000)
+      result.map(_.head) must_== Some(10)
     }
 
     "reduce a list of futures" in {
