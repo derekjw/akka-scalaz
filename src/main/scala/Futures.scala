@@ -24,7 +24,7 @@ object AkkaFutures {
   implicit object FutureBind extends Bind[Future] {
     def bind[A, B](r: Future[A], f: A => Future[B]) = {
       val fb = new DefaultCompletableFuture[B](nanosToMillis(r.timeoutInNanos))
-      r onComplete (fa => fa.result.cata(f(_).onComplete(fb.completeWith(_)),
+      r onComplete (fa => fa.result.cata(a => spawn(try {f(a).onComplete(fb.completeWith(_))} catch {case e => fb.completeWithException(e)}),
                                          fa.exception.foreach(fb.completeWithException)))
       fb
     }
