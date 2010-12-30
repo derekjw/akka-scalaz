@@ -143,10 +143,10 @@ class AkkaFuturesSpec extends Specification with Logging {
         reader.close
       }
 
-      def mapper[M[_]: Monad: Foldable, C[_]: Monad](in: M[String]): M[C[Seq[String]]] =
+      def mapper[M[_]: Monad: Foldable, C[_]: Monad](in: M[String]) =
         in.map(s => pure[C].apply(s.toLowerCase.filter(c => c.isLetterOrDigit || c.isSpaceChar).split(' ').toSeq))
 
-      def reducer[M[_]: Monad: Foldable, N[_]: Monad: Foldable, C[_]: Monad, A](in: M[C[N[A]]]): C[Map[A, Int]] =
+      def reducer[M[_]: Monad: Foldable, N[_]: Monad: Foldable, C[_]: Monad, A](in: M[C[N[A]]]) =
         in.foldl(Map[A,Int]().pure[C])((fr, fn) => fr flatMap (r => fn map (_.foldl(r)(incr(_,_)))))
 
       def incr[A](m: Map[A, Int], a: A) = m + (a -> (m.getOrElse(a, 0) + 1))
