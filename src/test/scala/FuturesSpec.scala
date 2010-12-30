@@ -14,7 +14,7 @@ import akka.util.Logging
 class AkkaFuturesSpec extends Specification with Logging {
   import AkkaFutures._
 
-  def f[A](a: => A):Future[A] = future(TIMEOUT)(a)
+  val f = pure[Future]
 
   "akka futures" should {
     "have scalaz functor instance" in {
@@ -138,22 +138,21 @@ class AkkaFuturesSpec extends Specification with Logging {
       val reader = new BufferedReader(new InputStreamReader(getClass.getClassLoader.getResourceAsStream("shakespeare.txt")))
 
       val lines = try {
-        Stream.continually(Option(reader.readLine)).filterNot(_ == Some("")).takeWhile(_.isDefined).grouped(100).map(_.flatten.mkString(" ")).toList
+        Stream.continually(Option(reader.readLine)).filterNot(_ == Some("")).takeWhile(_.isDefined).grouped(500).map(_.flatten.mkString(" ")).toList
       } finally {
         reader.close
       }
 
-      def mapper(in: Seq[String]): Seq[Future[Seq[String]]] =
-        in.map(s => f(s.toLowerCase.filter(c => c.isLetterOrDigit || c.isSpaceChar).split(' ').toSeq))
+      def mapper[M[_]: Monad: Foldable, C[_]: Monad](in: M[String]): M[C[Seq[String]]] =
+        in.map(s => pure[C].apply(s.toLowerCase.filter(c => c.isLetterOrDigit || c.isSpaceChar).split(' ').toSeq))
 
-      def reducer(in: Seq[Future[Seq[String]]]): Future[Map[String, Int]] =
-        in.foldLeft(f(Map[String,Int]().withDefaultValue(0)))((fm,fl) => fm >>= (m => fl ∘ (_.foldLeft(m)((a, b) => a + (b -> (a(b) + 1))))))
+      def reducer[M[_]: Monad: Foldable, N[_]: Monad: Foldable, C[_]: Monad, A](in: M[C[N[A]]]): C[Map[A, Int]] =
+        in.foldl(Map[A,Int]().pure[C])((fr, fn) => fr flatMap (r => fn map (_.foldl(r)(incr(_,_)))))
 
-      def result(in: Future[Map[String, Int]]): Option[Map[String, Int]] =
-        in.await.result
+      def incr[A](m: Map[A, Int], a: A) = m + (a -> (m.getOrElse(a, 0) + 1))
 
-      def wordcount(in: List[String]): Option[Map[String, Int]] =
-        result(reducer(mapper(in)))
+      def wordcount[M[_]: Monad: Foldable](in: M[String]) =
+        reducer(mapper[M, Future](in)).await.result
 
       val wc = bench("Wordcount")(wordcount(lines))
       wc must beSome.which(_ must haveSize(28344))
