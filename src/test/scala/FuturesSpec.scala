@@ -14,7 +14,7 @@ import akka.util.Logging
 class AkkaFuturesSpec extends Specification with Logging {
   import AkkaFutures._
 
-  val f = pure[Future]
+  def f[A](a: => A) = (() => a).future
 
   "akka futures" should {
     "have scalaz functor instance" in {
@@ -32,10 +32,10 @@ class AkkaFuturesSpec extends Specification with Logging {
 
     "have scalaz bind instance" in {
       val f1 = f(5 * 5)
-      val f2 = f1 >>= (x => f(x * 2))
-      val f3 = f2 >>= (x => f(x * 10))
-      val f4 = f1 >>= (x => f(x / 0))
-      val f5 = f4 >>= (x => f(x * 10))
+      val f2 = f1 >>= ((_: Int) * 2).future
+      val f3 = f2 >>= ((_: Int) * 10).future
+      val f4 = f1 >>= ((_: Int) / 0).future
+      val f5 = f4 >>= ((_: Int) * 10).future
 
       f2.await.resultOrException must_== Some(50)
       f3.await.resultOrException must_== Some(500)
@@ -69,19 +69,19 @@ class AkkaFuturesSpec extends Specification with Logging {
     }
 
     "sequence a list" in {
-      val result = (1 to 10000).toList.map(_.pure[Future] ∘ (10 *)).sequence.await.result
-      result.map(_.size) must_== Some(10000)
+      val result = (1 to 1000).toList.map((10 * (_: Int)).future).sequence.await.result
+      result.map(_.size) must_== Some(1000)
       result.map(_.head) must_== Some(10)
     }
 
     "map a list in parallel" in {
-      val result = (1 to 10000).toList.futureMap(10*).await.result
-      result.map(_.size) must_== Some(10000)
+      val result = (1 to 1000).toList.futureMap(10*).await.result
+      result.map(_.size) must_== Some(1000)
       result.map(_.head) must_== Some(10)
     }
 
     "reduce a list of futures" in {
-      val list = (1 to 100).toList.map(_.pure[Future])
+      val list = (1 to 100).toList.fpure[Future]
       list.reduceLeft((a,b) => (a ⊛ b)(_ + _)).await.result must_== Some(5050)
     }
 
@@ -143,16 +143,16 @@ class AkkaFuturesSpec extends Specification with Logging {
         reader.close
       }
 
-      def mapper[M[_]: Monad: Foldable, C[_]: Monad](in: M[String]) =
-        in.map(s => pure[C].apply(s.toLowerCase.filter(c => c.isLetterOrDigit || c.isSpaceChar).split(' ').toSeq))
+      def mapper[M[_]: Monad: Foldable](in: M[String]) =
+        in map ((_: String).toLowerCase.filter(c => c.isLetterOrDigit || c.isSpaceChar).split(' '): Seq[String]).future
 
-      def reducer[M[_]: Monad: Foldable, N[_]: Monad: Foldable, C[_]: Monad, A](in: M[C[N[A]]]) =
-        in.foldl(Map[A,Int]().pure[C])((fr, fn) => fr flatMap (r => fn map (_.foldl(r)(incr(_,_)))))
+      def reducer[M[_]: Monad: Foldable, N[_]: Foldable, A](in: M[Future[N[A]]]) =
+        in.foldl(Map[A,Int]().pure[Future])((fr, fn) => fr flatMap (r => fn map (_.foldl(r)(incr(_,_)))))
 
       def incr[A](m: Map[A, Int], a: A) = m + (a -> (m.getOrElse(a, 0) + 1))
 
       def wordcount[M[_]: Monad: Foldable](in: M[String]) =
-        reducer(mapper[M, Future](in)).await.result
+        reducer(mapper(in)).await.result
 
       val wc = bench("Wordcount")(wordcount(lines))
       wc must beSome.which(_ must haveSize(28344))
