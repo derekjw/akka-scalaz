@@ -12,8 +12,6 @@ import Futures.future
 import akka.util.Logging
 
 class AkkaFuturesSpec extends Specification with Logging {
-  import AkkaFutures._
-
   def f[A](a: => A) = (() => a).future
 
   "akka futures" should {

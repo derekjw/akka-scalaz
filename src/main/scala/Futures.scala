@@ -1,7 +1,9 @@
-package akka.scalaz
+package akka
 
-import scalaz._
+import _root_.scalaz._
 import Scalaz._
+
+import _root_.scalaz.concurrent.{Promise, Strategy}
 
 import akka.actor.Actor.{spawn, TIMEOUT}
 import akka.dispatch._
@@ -9,7 +11,7 @@ import Futures.future
 
 import java.util.concurrent.TimeUnit
 
-object AkkaFutures {
+package object scalaz {
   private def nanosToMillis(in: Long): Long = TimeUnit.NANOSECONDS.toMillis(in)
 
   implicit object FutureFunctor extends Functor[Future] {
@@ -60,12 +62,21 @@ object AkkaFutures {
     val k = f
   }
 
+  implicit def PromiseToFuture[A](pa: Promise[A]): PromiseFuture[A] = new PromiseFuture[A] {
+    val value = pa
+  }
+
   implicit def Function1FromFuture[T, R](f: Function1Future[T, R]): T => R = f.k
 }
+
+package scalaz {
 
 sealed trait FutureW[A] extends PimpedType[Future[A]] {
   def toValidation: Validation[Throwable, A] =
     value.await.result.cata(success(_), failure(value.exception.get))
+
+  def toPromise(implicit s: Strategy): Promise[Validation[Throwable, A]] =
+    promise(this toValidation)
 
   def timeout(t: Long): Future[A] = {
     val f = new DefaultCompletableFuture[A](t)
@@ -80,8 +91,6 @@ sealed trait CompletableFutureW[A] extends PimpedType[CompletableFuture[A]] {
 }
 
 sealed trait MAFuture[M[_], A] extends PimpedType[M[A]] {
-  import AkkaFutures._
-
   def futureMap[B](f: A => B)(implicit t: Traverse[M]): Future[M[B]] =
     value ∘ (f.future) sequence
 
@@ -90,17 +99,22 @@ sealed trait MAFuture[M[_], A] extends PimpedType[M[A]] {
 }
 
 sealed trait Function0Future[A] {
-  import AkkaFutures._
-
   val k: () => A
 
   def future: Future[A] = implicitly[Pure[Future]] pure k.apply
 }
 
 sealed trait Function1Future[T, R] {
-  import AkkaFutures._
-
   val k: T => R
 
   def future: Kleisli[Future, T, R] = k.kleisli[Future]
+}
+
+sealed trait PromiseFuture[A] extends PimpedType[Promise[A]] {
+  def toFuture: Future[A] = {
+    val fa = new DefaultCompletableFuture[A](TIMEOUT)
+    value to fa.completeWithResult
+    fa
+  }
+}
 }
