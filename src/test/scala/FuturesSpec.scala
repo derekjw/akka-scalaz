@@ -118,6 +118,25 @@ class AkkaFuturesSpec extends Specification with Logging {
       r2.await.resultOrException must throwA(new NumberFormatException("For input string: \"hello\""))
     }
 
+    "Kleisli composition" in {
+      val f = ((_: String).parseInt).future
+      val g = ((_: Validation[Throwable,Int]).map(_ * 2)).future
+      val h = ((_: Validation[Throwable,Int]).map(_ * 10)).future
+      val k = ((_: Validation[Throwable,Int]).fold("Error: " + _, "Got Int: " + _)).future
+
+      val fg = (f >=> g)
+      val fk = (f >=> k)
+      val fgk = f >=> g >=> k
+      val fghk = f >=> ((g >=> k) &&& h)
+
+      f("3").await.result must_== Some(Success(3))
+      fg("3").await.result must_== Some(Success(6))
+      fk("3").await.result must_== Some("Got Int: 3")
+      fgk("3").await.result must_== Some("Got Int: 6")
+      fgk("blah").await.result must_== Some("Error: java.lang.NumberFormatException: For input string: \"blah\"")
+      fghk("3").await.result must_== Some("Got Int: 6", Success(30))
+    }
+
     // Taken from Haskell example, performance is very poor, this is only here as a test
     "quicksort a list" in {
       val rnd = new scala.util.Random(1)
