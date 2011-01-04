@@ -22,10 +22,10 @@ class AkkaFuturesSpec extends Specification with Logging {
       val f4 = f1 ∘ (_ / 0)
       val f5 = f4 ∘ (_ * 10)
 
-      f2.await.resultOrException must_== Some(50)
-      f3.await.resultOrException must_== Some(500)
-      f4.await.resultOrException must throwA(new ArithmeticException("/ by zero"))
-      f5.await.resultOrException must throwA(new ArithmeticException("/ by zero"))
+      f2.getOrThrow must_== 50
+      f3.getOrThrow must_== 500
+      f4.getOrThrow must throwA(new ArithmeticException("/ by zero"))
+      f5.getOrThrow must throwA(new ArithmeticException("/ by zero"))
     }
 
     "have scalaz bind instance" in {
@@ -35,10 +35,10 @@ class AkkaFuturesSpec extends Specification with Logging {
       val f4 = f1 >>= ((_: Int) / 0).future
       val f5 = f4 >>= ((_: Int) * 10).future
 
-      f2.await.resultOrException must_== Some(50)
-      f3.await.resultOrException must_== Some(500)
-      f4.await.resultOrException must throwA(new ArithmeticException("/ by zero"))
-      f5.await.resultOrException must throwA(new ArithmeticException("/ by zero"))
+      f2.getOrThrow must_== 50
+      f3.getOrThrow must_== 500
+      f4.getOrThrow must throwA(new ArithmeticException("/ by zero"))
+      f5.getOrThrow must throwA(new ArithmeticException("/ by zero"))
     }
 
     "have scalaz apply instance" in {
@@ -46,12 +46,12 @@ class AkkaFuturesSpec extends Specification with Logging {
       val f2 = f1 ∘ (_ * 2)
       val f3 = f2 ∘ (_ / 0)
 
-      (f1 ⊛ f2)(_ * _).await.resultOrException must_== Some(1250)
-      (f1 ⊛ f2).tupled.await.resultOrException must_== Some((25,50))
-      (f1 ⊛ f2 ⊛ f3)(_ * _ * _).await.resultOrException must throwA(new ArithmeticException("/ by zero"))
-      (f3 ⊛ f2 ⊛ f1)(_ * _ * _).await.resultOrException must throwA(new ArithmeticException("/ by zero"))
+      (f1 ⊛ f2)(_ * _).getOrThrow must_== 1250
+      (f1 ⊛ f2).tupled.getOrThrow must_== (25,50)
+      (f1 ⊛ f2 ⊛ f3)(_ * _ * _).getOrThrow must throwA(new ArithmeticException("/ by zero"))
+      (f3 ⊛ f2 ⊛ f1)(_ * _ * _).getOrThrow must throwA(new ArithmeticException("/ by zero"))
 
-      (f1 <|**|> (f2, f1)).await.resultOrException must_== Some((25,50,25))
+      (f1 <|**|> (f2, f1)).getOrThrow must_== (25,50,25)
     }
 
     "calculate fib seq" in {
@@ -63,29 +63,29 @@ class AkkaFuturesSpec extends Specification with Logging {
         else
           (fib(n - 1) ⊛ fib(n - 2))(_ + _)
 
-      fib(40).await.result must_== Some(102334155)
+      fib(40).getOrThrow must_== 102334155
     }
 
     "sequence a list" in {
-      val result = (1 to 1000).toList.map((10 * (_: Int)).future).sequence.await.result
-      result.map(_.size) must_== Some(1000)
-      result.map(_.head) must_== Some(10)
+      val result = (1 to 1000).toList.map((10 * (_: Int)).future).sequence.getOrThrow
+      result must haveSize(1000)
+      result.head must_== 10
     }
 
     "map a list in parallel" in {
-      val result = (1 to 1000).toList.futureMap(10*).await.result
-      result.map(_.size) must_== Some(1000)
-      result.map(_.head) must_== Some(10)
+      val result = (1 to 1000).toList.futureMap(10*).getOrThrow
+      result must haveSize(1000)
+      result.head must_== 10
     }
 
     "reduce a list of futures" in {
       val list = (1 to 100).toList.fpure[Future]
-      list.reduceLeft((a,b) => (a ⊛ b)(_ + _)).await.result must_== Some(5050)
+      list.reduceLeft((a,b) => (a ⊛ b)(_ + _)).getOrThrow must_== 5050
     }
 
     "fold into a future" in {
       val list = (1 to 100).toList
-      list.foldLeftM(0)((b,a) => f(b + a)).await.result must_== Some(5050)
+      list.foldLeftM(0)((b,a) => f(b + a)).getOrThrow must_== 5050
     }
 
     "have a resetable timeout" in {
@@ -107,7 +107,7 @@ class AkkaFuturesSpec extends Specification with Logging {
         x3 <- f("12".toInt)
       } yield x1 + x2 + x3
 
-      r1.await.resultOrException must_== Some(196)
+      r1.getOrThrow must_== 196
 
       val r2 = for {
         x1 <- f("34".toInt)
@@ -115,26 +115,22 @@ class AkkaFuturesSpec extends Specification with Logging {
         x3 <- f("12".toInt)
       } yield x1 + x2 + x3
 
-      r2.await.resultOrException must throwA(new NumberFormatException("For input string: \"hello\""))
+      r2.getOrThrow must throwA(new NumberFormatException("For input string: \"hello\""))
     }
 
     "Kleisli composition" in {
-      val f = ((_: String).parseInt).future
-      val g = ((_: Validation[Throwable,Int]).map(_ * 2)).future
-      val h = ((_: Validation[Throwable,Int]).map(_ * 10)).future
-      val k = ((_: Validation[Throwable,Int]).fold("Error: " + _, "Got Int: " + _)).future
+      val f = ((_: String).toInt).future
+      val g = ((_: Int) * 2).future
+      val h = ((_: Int) * 10).future
 
-      val fg = (f >=> g)
-      val fk = (f >=> k)
-      val fgk = f >=> g >=> k
-      val fghk = f >=> ((g >=> k) &&& h)
-
-      f("3").await.result must_== Some(Success(3))
-      fg("3").await.result must_== Some(Success(6))
-      fk("3").await.result must_== Some("Got Int: 3")
-      fgk("3").await.result must_== Some("Got Int: 6")
-      fgk("blah").await.result must_== Some("Error: java.lang.NumberFormatException: For input string: \"blah\"")
-      fghk("3").await.result must_== Some("Got Int: 6", Success(30))
+      (f apply "3" get) must_== success(3)
+      (f >=> g apply "3" get) must_== success(6)
+      (f >=> h apply "3" getOrThrow) must_== 30
+      (f >=> g >=> h apply "3" getOrThrow) must_== 60
+      (f >=> g >=> h apply "blah" getOrThrow) must throwA(new NumberFormatException("For input string: \"blah\""))
+      (f >=> (g &&& h) apply "3" getOrThrow) must_== (6, 30)
+      ((f *** f) >=> (g *** h) apply ("3", "7") getOrThrow) must_== (6, 70)
+      ((f *** f) >=> (g *** h) apply ("3", "blah") getOrThrow) must throwA(new NumberFormatException("For input string: \"blah\""))
     }
 
     // Taken from Haskell example, performance is very poor, this is only here as a test
@@ -147,7 +143,7 @@ class AkkaFuturesSpec extends Specification with Logging {
         case x :: xs ⇒ (qsort(xs.filter(ord.lt(_,x))) ⊛ x.pure[Future] ⊛ qsort(xs.filter(ord.gteq(_,x))))(_ ::: _ :: _)
       }
 
-      qsort(list).await.result must beSome[List[Int]].which(_ == list.sorted)
+      qsort(list).getOrThrow must containInOrder(list.sorted)
     }
 
     "shakespeare wordcount" in {
@@ -169,11 +165,11 @@ class AkkaFuturesSpec extends Specification with Logging {
       def incr[A](m: Map[A, Int], a: A) = m + (a -> (m.getOrElse(a, 0) + 1))
 
       def wordcount[M[_]: Monad: Foldable](in: M[String]) =
-        reducer(mapper(in)).await.result
+        reducer(mapper(in)).getOrThrow
 
       val wc = bench("Wordcount")(wordcount(lines))
-      wc must beSome.which(_ must haveSize(28344))
-      wc.flatMap(_.get("shakespeare")) must beSome.which(_ must_== 268)
+      wc must haveSize(28344)
+      wc must havePair("shakespeare", 268)
     }
   }
 
