@@ -139,8 +139,10 @@ class AkkaFuturesSpec extends Specification with Logging {
       val list = List.fill(1000)(rnd.nextInt)
 
       def qsort[T](in: List[T])(implicit ord: math.Ordering[T]): Future[List[T]] = in match {
-        case Nil ⇒ nil.pure[Future]
-        case x :: xs ⇒ (qsort(xs.filter(ord.lt(_,x))) ⊛ x.pure[Future] ⊛ qsort(xs.filter(ord.gteq(_,x))))(_ ::: _ :: _)
+        case Nil => nil.pure[Future]
+        case x :: Nil => List(x).pure[Future]
+        case x :: y :: Nil => (if (ord.lt(x,y)) List(x,y) else List(y,x)).pure[Future]
+        case x :: xs => (qsort(xs.filter(ord.lt(_,x))) ⊛ x.pure[Future] ⊛ qsort(xs.filter(ord.gteq(_,x))))(_ ::: _ :: _)
       }
 
       qsort(list).getOrThrow must containInOrder(list.sorted)
