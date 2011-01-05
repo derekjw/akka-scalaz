@@ -1,4 +1,4 @@
-package akka.scalaz
+package akka.scalaz.futures
 
 import org.specs._
 
@@ -7,7 +7,6 @@ import Scalaz._
 
 import akka.dispatch._
 import akka.actor.Actor.TIMEOUT
-import Futures.future
 
 import akka.util.Logging
 
@@ -73,7 +72,7 @@ class AkkaFuturesSpec extends Specification with Logging {
     }
 
     "map a list in parallel" in {
-      val result = (1 to 1000).toList.futureMap(10*).getOrThrow
+      val result = futureMap((1 to 1000).toList)(10*).getOrThrow
       result must haveSize(1000)
       result.head must_== 10
     }
