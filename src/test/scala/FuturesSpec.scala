@@ -6,7 +6,8 @@ import scalaz._
 import Scalaz._
 
 import akka.dispatch._
-import akka.actor.Actor.TIMEOUT
+import akka.actor.Actor
+import Actor._
 
 import akka.util.Logging
 
@@ -132,6 +133,17 @@ class AkkaFuturesSpec extends Specification with Logging {
       ((f *** f) >=> (g *** h) apply ("3", "blah") getOrThrow) must throwA(new NumberFormatException("For input string: \"blah\""))
     }
 
+    "Kleisli composition with actors" in {
+      val a = actorOf[DoubleActor].start
+      val k = a.kleisli
+      val l = (1 to 5).toList
+
+      (l map k sequence).getOrThrow must_== List(2, 4, 6, 8, 10)
+      (l map (k >=> k) sequence).getOrThrow must_== List(4, 8, 12, 16, 20)
+      (l map (k &&& (k >=> k)) sequence).getOrThrow must_== List((2, 4), (4, 8), (6, 12), (8, 16), (10, 20))
+      a.stop
+    }
+
     // Taken from Haskell example, performance is very poor, this is only here as a test
     "quicksort a list" in {
       val rnd = new scala.util.Random(1)
@@ -182,3 +194,10 @@ class AkkaFuturesSpec extends Specification with Logging {
     result
   } 
 }
+
+class DoubleActor extends Actor {
+  def receive = {
+    case i: Int => self reply (i*2)
+  }
+}
+

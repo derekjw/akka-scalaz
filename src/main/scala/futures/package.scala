@@ -13,6 +13,7 @@ import futures.conversions._
 
 package object futures extends Futures
     with CompletableFutures
+    with ActorRefs
     with conversions.Promises
     with conversions.Function0s
     with conversions.Function1s {

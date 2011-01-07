@@ -1,11 +1,11 @@
-package akka.scalaz.actors
+package akka.scalaz.futures
 package conversions
 
 import scalaz._
 import Scalaz._
 
-import akka.dispatch.{Future}
-import akka.actor.{ActorRef}
+import akka.dispatch.Future
+import akka.actor.ActorRef
 
 sealed trait ActorRefW extends PimpedType[ActorRef] {
   def kleisli: Kleisli[Future, Any, Any] = Scalaz.kleisli((a: Any) => value !!! a)
