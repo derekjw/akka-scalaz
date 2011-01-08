@@ -134,14 +134,24 @@ class AkkaFuturesSpec extends Specification with Logging {
     }
 
     "Kleisli composition with actors" in {
-      val a = actorOf[DoubleActor].start
-      val k = a.kleisli
+      val a1 = actorOf[DoubleActor].start
+      val a2 = actorOf[ToStringActor].start
+      val k1 = a1.kleisli
+      val k2 = a2.kleisli
       val l = (1 to 5).toList
 
-      (l map k sequence).getOrThrow must_== List(2, 4, 6, 8, 10)
-      (l map (k >=> k) sequence).getOrThrow must_== List(4, 8, 12, 16, 20)
-      (l map (k &&& (k >=> k)) sequence).getOrThrow must_== List((2, 4), (4, 8), (6, 12), (8, 16), (10, 20))
-      a.stop
+      (l map k1 sequence).getOrThrow must_== List(2, 4, 6, 8, 10)
+      (l map (k1 >=> k2) sequence).getOrThrow must_== List("Int: 2", "Int: 4", "Int: 6", "Int: 8", "Int: 10")
+      (l map (k1 &&& (k1 >=> k2)) sequence).getOrThrow must_== List((2, "Int: 2"), (4, "Int: 4"), (6, "Int: 6"), (8, "Int: 8"), (10, "Int: 10"))
+
+      val f = ((_: String).toInt).future
+      val g = ((_: Int) * 2).future
+      val h = ((_: Int) * 10).future
+
+      ((f *** f) >=> (g *** h) >=> (k1 *** k2) apply ("3", "7") getOrThrow) must_== (12, "Int: 70")
+
+      a1.stop
+      a2.stop
     }
 
     // Taken from Haskell example, performance is very poor, this is only here as a test
@@ -198,6 +208,12 @@ class AkkaFuturesSpec extends Specification with Logging {
 class DoubleActor extends Actor {
   def receive = {
     case i: Int => self reply (i*2)
+  }
+}
+
+class ToStringActor extends Actor {
+  def receive = {
+    case i: Int => self reply ("Int: "+ i)
   }
 }
 
