@@ -32,6 +32,9 @@ sealed trait FutureW[A] extends PimpedType[Future[A]] {
 
   def fold[X](failure: Throwable => X = identity[Throwable] _, success: A => X = identity[A] _): X =
     this.toValidation fold (failure, success)
+
+  def onCompleteFold(failure: Throwable => Unit = _ => (), success: A => Unit = _ => ()): Unit =
+    value.onComplete(f => f.result.fold(success, f.exception.foreach(failure)))
 }
 
 trait Futures {
