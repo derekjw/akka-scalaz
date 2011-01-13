@@ -1,9 +1,13 @@
 package akka.scalaz.futures
 
-import org.specs._
-
 import scalaz._
 import Scalaz._
+
+import org.specs.{Specification, ScalaCheck}
+import org.scalacheck.Arbitrary
+import scalacheck.{ScalazProperties, ScalazArbitrary, ScalaCheckBinding}
+import ScalaCheckBinding._
+import ScalazArbitrary._
 
 import akka.dispatch._
 import akka.actor.Actor
@@ -11,10 +15,21 @@ import Actor._
 
 import akka.util.Logging
 
-class AkkaFuturesSpec extends Specification with Logging {
+class AkkaFuturesSpec extends Specification with ScalaCheck with Logging {
   def f[A](a: => A) = (() => a).future
 
+  implicit def FutureEqual[A: Equal] = equal[Future[A]]((a1,a2) => a1.getOrThrow === a2.getOrThrow)
+
+  implicit def FutureArbitrary[A: Arbitrary]: Arbitrary[Future[A]] = implicitly[Arbitrary[A]] map ((a: A) => f(a))
+
   "akka futures" should {
+    "satisfy monad laws" in {
+      import ScalazProperties.Monad._
+      leftIdentity[Future, Int, Int] must pass
+      rightIdentity[Future, Int] must pass
+      associativity[Future, Int, Int, Int] must pass
+    }
+
     "have scalaz functor instance" in {
       val f1 = f(5 * 5)
       val f2 = f1 ∘ (_ * 2)
