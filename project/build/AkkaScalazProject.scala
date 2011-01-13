@@ -4,8 +4,9 @@ class AkkaScalazProject(info: ProjectInfo) extends DefaultProject(info) with Akk
 
   override def compileOptions = Optimize :: Unchecked :: super.compileOptions.toList
 
-  //val scalazCore = "com.googlecode.scalaz" %% "scalaz-core" % "5.1-SNAPSHOT"
-  val specs = "org.scala-tools.testing" %% "specs" % "1.6.6" % "test"
+  val scalazCore = "com.googlecode.scalaz" %% "scalaz-core" % "5.1-SNAPSHOT"
+  val scalazScalacheck = "com.googlecode.scalaz" %% "scalaz-scalacheck-binding" % "5.1-SNAPSHOT" % "test"
+  val specs = "org.scala-tools.testing" %% "specs" % "1.6.7" % "test"
 
   override def managedStyle = ManagedStyle.Maven
   val publishUser = "derek"

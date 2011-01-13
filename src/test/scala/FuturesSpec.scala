@@ -166,7 +166,7 @@ class AkkaFuturesSpec extends Specification with Logging {
         case x :: xs => (qsort(xs.filter(ord.lt(_,x))) ⊛ x.pure[Future] ⊛ qsort(xs.filter(ord.gteq(_,x))))(_ ::: _ :: _)
       }
 
-      qsort(list).getOrThrow must containInOrder(list.sorted)
+      qsort(list).getOrThrow must containInOrder(list.sorted: _*)
     }
 
     "shakespeare wordcount" in {
