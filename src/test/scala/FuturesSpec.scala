@@ -3,7 +3,9 @@ package akka.scalaz.futures
 import scalaz._
 import Scalaz._
 
-import org.specs.{Specification, ScalaCheck}
+import org.scalatest.WordSpec
+import org.scalatest.matchers.ShouldMatchers
+import org.scalatest.prop.Checkers
 import org.scalacheck.Arbitrary
 import scalacheck.{ScalazProperties, ScalazArbitrary, ScalaCheckBinding}
 import ScalaCheckBinding._
@@ -15,21 +17,35 @@ import Actor._
 
 import akka.util.Logging
 
-class AkkaFuturesSpec extends Specification with ScalaCheck with Logging {
+class AkkaFuturesSpec extends WordSpec with ShouldMatchers with Checkers with Logging {
   def f[A](a: => A) = (() => a).future
 
-  implicit def FutureEqual[A: Equal] = equal[Future[A]]((a1,a2) => a1.getOrThrow === a2.getOrThrow)
+  implicit def FutureEqual[A: Equal] = Scalaz.equal[Future[A]]((a1,a2) => a1.getOrThrow ≟ a2.getOrThrow)
 
   implicit def FutureArbitrary[A: Arbitrary]: Arbitrary[Future[A]] = implicitly[Arbitrary[A]] map ((a: A) => f(a))
 
-  "akka futures" should {
-    "satisfy monad laws" in {
-      import ScalazProperties.Monad._
-      leftIdentity[Future, Int, Int] must pass
-      rightIdentity[Future, Int] must pass
-      associativity[Future, Int, Int, Int] must pass
-    }
+  "the future functor" should {
+    import ScalazProperties.Functor._
+    "satisfy the law of identity" in check(identity[Future, Int])
+    "satisfy the law of associativity" in check(associative[Future, Int, Int, Int])
+  }
 
+  "the future monad" should {
+    import ScalazProperties.Monad._
+    "satisfy the law of left identity" in check(leftIdentity[Future, Int, Int])
+    "satisfy the law of right identity" in check(rightIdentity[Future, Int])
+    "satisfy the law of associativity" in check(associativity[Future, Int, Int, Int])
+  }
+
+  "the future applicative functor" should {
+    import ScalazProperties.Applicative._
+    "satisfy the law of identity" in check(identity[Future, Int])
+    "satisfy the law of composition" in check(composition[Future, Int, Int, Int])
+    "satisfy the law of homomorphism" in check(homomorphism[Future, Int, Int])
+    "satisfy the law of interchange" in check(interchange[Future, Int, Int])
+  }
+
+  "examples of future usage" should {
     "have scalaz functor instance" in {
       val f1 = f(5 * 5)
       val f2 = f1 ∘ (_ * 2)
@@ -37,10 +53,10 @@ class AkkaFuturesSpec extends Specification with ScalaCheck with Logging {
       val f4 = f1 ∘ (_ / 0)
       val f5 = f4 ∘ (_ * 10)
 
-      f2.getOrThrow must_== 50
-      f3.getOrThrow must_== 500
-      f4.getOrThrow must throwA(new ArithmeticException("/ by zero"))
-      f5.getOrThrow must throwA(new ArithmeticException("/ by zero"))
+      f2.getOrThrow should equal (50)
+      f3.getOrThrow should equal (500)
+      evaluating (f4.getOrThrow) should produce [ArithmeticException]
+      evaluating (f5.getOrThrow) should produce [ArithmeticException]
     }
 
     "have scalaz bind instance" in {
@@ -50,10 +66,10 @@ class AkkaFuturesSpec extends Specification with ScalaCheck with Logging {
       val f4 = f1 >>= ((_: Int) / 0).future
       val f5 = f4 >>= ((_: Int) * 10).future
 
-      f2.getOrThrow must_== 50
-      f3.getOrThrow must_== 500
-      f4.getOrThrow must throwA(new ArithmeticException("/ by zero"))
-      f5.getOrThrow must throwA(new ArithmeticException("/ by zero"))
+      f2.getOrThrow should equal (50)
+      f3.getOrThrow should equal (500)
+      evaluating (f4.getOrThrow) should produce [ArithmeticException]
+      evaluating (f5.getOrThrow) should produce [ArithmeticException]
     }
 
     "have scalaz apply instance" in {
@@ -61,12 +77,11 @@ class AkkaFuturesSpec extends Specification with ScalaCheck with Logging {
       val f2 = f1 ∘ (_ * 2)
       val f3 = f2 ∘ (_ / 0)
 
-      (f1 ⊛ f2)(_ * _).getOrThrow must_== 1250
-      (f1 ⊛ f2).tupled.getOrThrow must_== (25,50)
-      (f1 ⊛ f2 ⊛ f3)(_ * _ * _).getOrThrow must throwA(new ArithmeticException("/ by zero"))
-      (f3 ⊛ f2 ⊛ f1)(_ * _ * _).getOrThrow must throwA(new ArithmeticException("/ by zero"))
-
-      (f1 <|**|> (f2, f1)).getOrThrow must_== (25,50,25)
+      (f1 ⊛ f2)(_ * _).getOrThrow should equal (1250)
+      (f1 ⊛ f2).tupled.getOrThrow should equal (25,50)
+      evaluating ((f1 ⊛ f2 ⊛ f3)(_ * _ * _).getOrThrow) should produce [ArithmeticException]
+      evaluating ((f3 ⊛ f2 ⊛ f1)(_ * _ * _).getOrThrow) should produce [ArithmeticException]
+      (f1 <|**|> (f2, f1)).getOrThrow should equal (25,50,25)
     }
 
     "calculate fib seq" in {
@@ -78,41 +93,41 @@ class AkkaFuturesSpec extends Specification with ScalaCheck with Logging {
         else
           (fib(n - 1) ⊛ fib(n - 2))(_ + _)
 
-      fib(40).getOrThrow must_== 102334155
+      fib(40).getOrThrow should equal (102334155)
     }
 
     "sequence a list" in {
       val result = (1 to 1000).toList.map((10 * (_: Int)).future).sequence.getOrThrow
-      result must haveSize(1000)
-      result.head must_== 10
+      result should have size (1000)
+      result.head should equal (10)
     }
 
     "map a list in parallel" in {
       val result = futureMap((1 to 1000).toList)(10*).getOrThrow
-      result must haveSize(1000)
-      result.head must_== 10
+      result should have size (1000)
+      result.head should equal (10)
     }
 
     "reduce a list of futures" in {
       val list = (1 to 100).toList.fpure[Future]
-      list.reduceLeft((a,b) => (a ⊛ b)(_ + _)).getOrThrow must_== 5050
+      list.reduceLeft((a,b) => (a ⊛ b)(_ + _)).getOrThrow should equal (5050)
     }
 
     "fold into a future" in {
       val list = (1 to 100).toList
-      list.foldLeftM(0)((b,a) => f(b + a)).getOrThrow must_== 5050
+      list.foldLeftM(0)((b,a) => f(b + a)).getOrThrow should equal (5050)
     }
 
     "have a resetable timeout" in {
-      f("test").timeout(100).await mustNot throwA(new FutureTimeoutException("Futures timed out after [100] milliseconds"))
-      f({Thread.sleep(500);"test"}).timeout(100).await must throwA(new FutureTimeoutException("Futures timed out after [100] milliseconds"))
+      f("test").timeout(100).getOrThrow should equal ("test")
+      evaluating (f({Thread.sleep(500);"test"}).timeout(100).getOrThrow) should produce[FutureTimeoutException]
     }
 
     "convert to Validation" in {
       val r1 = (f("34".toInt) ⊛ f("150".toInt) ⊛ f("12".toInt))(_ + _ + _)
-      r1.toValidation must_== Success(196)
+      r1.toValidation should equal (Success(196))
       val r2 = (f("34".toInt) ⊛ f("hello".toInt) ⊛ f("12".toInt))(_ + _ + _)
-      r2.toValidation.fail.map(_.toString).validation must_== Failure("java.lang.NumberFormatException: For input string: \"hello\"")
+      r2.toValidation.fail.map(_.toString).validation should equal (Failure("java.lang.NumberFormatException: For input string: \"hello\""))
     }
 
     "for-comprehension" in {
@@ -122,7 +137,7 @@ class AkkaFuturesSpec extends Specification with ScalaCheck with Logging {
         x3 <- f("12".toInt)
       } yield x1 + x2 + x3
 
-      r1.getOrThrow must_== 196
+      r1.getOrThrow should equal (196)
 
       val r2 = for {
         x1 <- f("34".toInt)
@@ -130,7 +145,7 @@ class AkkaFuturesSpec extends Specification with ScalaCheck with Logging {
         x3 <- f("12".toInt)
       } yield x1 + x2 + x3
 
-      r2.getOrThrow must throwA(new NumberFormatException("For input string: \"hello\""))
+      evaluating (r2.getOrThrow) should produce[NumberFormatException]
     }
 
     "Kleisli composition" in {
@@ -138,14 +153,14 @@ class AkkaFuturesSpec extends Specification with ScalaCheck with Logging {
       val g = ((_: Int) * 2).future
       val h = ((_: Int) * 10).future
 
-      (f apply "3" get) must_== success(3)
-      (f >=> g apply "3" get) must_== success(6)
-      (f >=> h apply "3" getOrThrow) must_== 30
-      (f >=> g >=> h apply "3" getOrThrow) must_== 60
-      (f >=> g >=> h apply "blah" getOrThrow) must throwA(new NumberFormatException("For input string: \"blah\""))
-      (f >=> (g &&& h) apply "3" getOrThrow) must_== (6, 30)
-      ((f *** f) >=> (g *** h) apply ("3", "7") getOrThrow) must_== (6, 70)
-      ((f *** f) >=> (g *** h) apply ("3", "blah") getOrThrow) must throwA(new NumberFormatException("For input string: \"blah\""))
+      (f apply "3" get) should equal (success(3))
+      (f >=> g apply "3" get) should equal (success(6))
+      (f >=> h apply "3" getOrThrow) should equal (30)
+      (f >=> g >=> h apply "3" getOrThrow) should equal (60)
+      (f >=> (g &&& h) apply "3" getOrThrow) should equal (6, 30)
+      ((f *** f) >=> (g *** h) apply ("3", "7") getOrThrow) should equal (6, 70)
+      evaluating (f >=> g >=> h apply "blah" getOrThrow) should produce[NumberFormatException]
+      evaluating ((f *** f) >=> (g *** h) apply ("3", "blah") getOrThrow) should produce[NumberFormatException]
     }
 
     "Kleisli composition with actors" in {
@@ -155,15 +170,15 @@ class AkkaFuturesSpec extends Specification with ScalaCheck with Logging {
       val k2 = a2.kleisli
       val l = (1 to 5).toList
 
-      (l map k1 sequence).getOrThrow must_== List(2, 4, 6, 8, 10)
-      (l map (k1 >=> k2) sequence).getOrThrow must_== List("Int: 2", "Int: 4", "Int: 6", "Int: 8", "Int: 10")
-      (l map (k1 &&& (k1 >=> k2)) sequence).getOrThrow must_== List((2, "Int: 2"), (4, "Int: 4"), (6, "Int: 6"), (8, "Int: 8"), (10, "Int: 10"))
+      (l map k1 sequence).getOrThrow should equal (List(2, 4, 6, 8, 10))
+      (l map (k1 >=> k2) sequence).getOrThrow should equal (List("Int: 2", "Int: 4", "Int: 6", "Int: 8", "Int: 10"))
+      (l map (k1 &&& (k1 >=> k2)) sequence).getOrThrow should equal (List((2, "Int: 2"), (4, "Int: 4"), (6, "Int: 6"), (8, "Int: 8"), (10, "Int: 10")))
 
       val f = ((_: String).toInt).future
       val g = ((_: Int) * 2).future
       val h = ((_: Int) * 10).future
 
-      ((f *** f) >=> (g *** h) >=> (k1 *** k2) apply ("3", "7") getOrThrow) must_== (12, "Int: 70")
+      ((f *** f) >=> (g *** h) >=> (k1 *** k2) apply ("3", "7") getOrThrow) should equal (12, "Int: 70")
 
       a1.stop
       a2.stop
@@ -181,7 +196,7 @@ class AkkaFuturesSpec extends Specification with ScalaCheck with Logging {
         case x :: xs => (qsort(xs.filter(ord.lt(_,x))) ⊛ x.pure[Future] ⊛ qsort(xs.filter(ord.gteq(_,x))))(_ ::: _ :: _)
       }
 
-      qsort(list).getOrThrow must containInOrder(list.sorted: _*)
+      qsort(list).getOrThrow should equal (list.sorted)
     }
 
     "shakespeare wordcount" in {
@@ -206,8 +221,8 @@ class AkkaFuturesSpec extends Specification with ScalaCheck with Logging {
         reducer(mapper(in)).getOrThrow
 
       val wc = bench("Wordcount")(wordcount(lines))
-      wc must haveSize(28344)
-      wc must havePair("shakespeare", 268)
+      wc should have size (28344)
+      wc should contain ("shakespeare", 268)
     }
   }
 
@@ -217,7 +232,7 @@ class AkkaFuturesSpec extends Specification with ScalaCheck with Logging {
     val endTime = System.currentTimeMillis
     log.info("%s took %dms", name, endTime - startTime)
     result
-  } 
+  }
 }
 
 class DoubleActor extends Actor {
