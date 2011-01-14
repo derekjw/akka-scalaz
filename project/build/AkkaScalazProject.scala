@@ -8,7 +8,7 @@ class AkkaScalazProject(info: ProjectInfo) extends DefaultProject(info) with Akk
   val scalazScalacheck = "com.googlecode.scalaz" %% "scalaz-scalacheck-binding" % "5.1-SNAPSHOT" % "test"
   val scalatest = "org.scalatest" % "scalatest" % "1.2.1-SNAPSHOT" % "test"
 
-  override def testOptions = TestArgument(TestFrameworks.ScalaTest, "-oD") :: super.testOptions.toList
+  //override def testOptions = TestArgument(TestFrameworks.ScalaTest, "-oD") :: super.testOptions.toList
 
   override def managedStyle = ManagedStyle.Maven
   val publishUser = "derek"
