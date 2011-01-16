@@ -193,7 +193,7 @@ class AkkaFuturesSpec extends WordSpec with ShouldMatchers with Checkers with Lo
         case Nil => nil.pure[Future]
         case x :: Nil => List(x).pure[Future]
         case x :: y :: Nil => (if (ord.lt(x,y)) List(x,y) else List(y,x)).pure[Future]
-        case x :: xs => (qsort(xs.filter(ord.lt(_,x))) ⊛ x.pure[Future] ⊛ qsort(xs.filter(ord.gteq(_,x))))(_ ::: _ :: _)
+        case x :: xs => (f(qsort(xs.filter(ord.lt(_,x)))).join ⊛ x.pure[Future] ⊛ f(qsort(xs.filter(ord.gteq(_,x)))).join)(_ ::: _ :: _)
       }
 
       qsort(list).getOrThrow should equal (list.sorted)
