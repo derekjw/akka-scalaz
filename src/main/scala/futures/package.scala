@@ -76,6 +76,8 @@ package object futures extends Futures
   implicit def FutureSemigroup[A: Semigroup]: Semigroup[Future[A]] =
     semigroup ((fa, fb) => (fa <**> fb)(_ |+| _))
 
+  implicit def FutureZero[A: Zero]: Zero[Future[A]] = zero(∅[A].pure[Future])
+
   def futureMap[M[_], A, B](ma: M[A])(f: A => B)(implicit t: Traverse[M]): Future[M[B]] =
     ma ∘ (f.future) sequence
 

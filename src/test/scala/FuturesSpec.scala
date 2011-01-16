@@ -189,6 +189,16 @@ class AkkaFuturesSpec extends WordSpec with ShouldMatchers with Checkers with Lo
       (f(List(1,2,3)) |+| f(List(4,5,6))).getOrThrow should equal (List(1,2,3,4,5,6))
     }
 
+    "Monoids" in {
+      val doubler = ((_: Int) * 2).future
+
+      (List(1,2,3,4,5).fpure[Future] ∑).getOrThrow should equal (15)
+      (List(1,2,3,4,5) ↣ doubler).getOrThrow should equal (30)
+      (nil[Int] ↣ doubler).getOrThrow should equal (0)
+
+      1.unfold[Future, String](x => (x < 5).option((x.toString, x + 1))).getOrThrow should equal ("1234")
+    }
+
     // Taken from Haskell example, performance is very poor, this is only here as a test
     "quicksort a list" in {
       val rnd = new scala.util.Random(1)
