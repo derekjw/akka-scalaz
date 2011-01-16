@@ -73,6 +73,9 @@ package object futures extends Futures
     def each[A](e: Future[A], f: A => Unit) = e onComplete (_.result foreach f)
   }
 
+  implicit def FutureSemigroup[A: Semigroup]: Semigroup[Future[A]] =
+    semigroup ((fa, fb) => (fa <**> fb)(_ |+| _))
+
   def futureMap[M[_], A, B](ma: M[A])(f: A => B)(implicit t: Traverse[M]): Future[M[B]] =
     ma ∘ (f.future) sequence
 

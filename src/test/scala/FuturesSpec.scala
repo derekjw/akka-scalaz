@@ -184,6 +184,11 @@ class AkkaFuturesSpec extends WordSpec with ShouldMatchers with Checkers with Lo
       a2.stop
     }
 
+    "Semigroups" in {
+      (f(3) |+| f(4)).getOrThrow should equal (7)
+      (f(List(1,2,3)) |+| f(List(4,5,6))).getOrThrow should equal (List(1,2,3,4,5,6))
+    }
+
     // Taken from Haskell example, performance is very poor, this is only here as a test
     "quicksort a list" in {
       val rnd = new scala.util.Random(1)
