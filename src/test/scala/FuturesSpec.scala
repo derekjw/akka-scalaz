@@ -215,8 +215,7 @@ class AkkaFuturesSpec extends WordSpec with ShouldMatchers with Checkers with Lo
     }
 
     "shakespeare wordcount" in {
-      import java.io.{InputStreamReader, BufferedReader}
-      val reader = new BufferedReader(new InputStreamReader(getClass.getClassLoader.getResourceAsStream("shakespeare.txt")))
+      val reader = new java.io.BufferedReader(new java.io.InputStreamReader(getClass.getClassLoader.getResourceAsStream("shakespeare.txt")))
 
       val lines = try {
         Stream.continually(Option(reader.readLine)).filterNot(_ == Some("")).takeWhile(_.isDefined).grouped(500).map(_.flatten.mkString(" ")).toList
@@ -224,20 +223,11 @@ class AkkaFuturesSpec extends WordSpec with ShouldMatchers with Checkers with Lo
         reader.close
       }
 
-      def mapper[M[_]: Monad: Foldable](in: M[String]) =
-        in map ((_: String).toLowerCase.filter(c => c.isLetterOrDigit || c.isSpaceChar).split(' '): Seq[String]).future
-
-      def reducer[M[_]: Monad: Foldable, N[_]: Foldable, A](in: M[Future[N[A]]]) =
-        in.foldl(Map[A,Int]().pure[Future])((fr, fn) => fr flatMap (r => fn map (_.foldl(r)(incr(_,_)))))
-
-      def incr[A](m: Map[A, Int], a: A) = m + (a -> (m.getOrElse(a, 0) + 1))
-
       def wordcount[M[_]: Monad: Foldable](in: M[String]) =
-        reducer(mapper(in)).getOrThrow
+        in.map(((_: String).toLowerCase.filter(c => c.isLetterOrDigit || c.isSpaceChar).split(' '): Seq[String]).future).
+          foldl(Map[String,Int]().withDefaultValue(0).pure[Future])((fr, fn) => (fn <**> fr)(_.foldl(_)((r,s) => r + (s -> (r(s) + 1)))))
 
-      val wc = bench("Wordcount")(wordcount(lines))
-      wc should have size (28344)
-      wc should contain ("shakespeare", 268)
+      bench("Wordcount")(wordcount(lines).getOrThrow) should (have size (28344) and contain ("shakespeare", 268))
     }
   }
 
