@@ -24,5 +24,4 @@ class AkkaScalazProject(info: ProjectInfo) extends DefaultProject(info) with Akk
   val fyrieSnapshots          = "Fyrie snapshots" at "http://repo.fyrie.net/snapshots"
 
   val scalaToolsSnapshots     = ScalaToolsSnapshots
-  val akkaModuleConfig        = ModuleConfiguration("se.scalablesolutions.akka", AkkaRepositories.AkkaRepo)
 }
