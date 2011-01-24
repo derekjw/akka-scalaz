@@ -227,7 +227,20 @@ class AkkaFuturesSpec extends WordSpec with ShouldMatchers with Checkers with Lo
         in.map(((_: String).toLowerCase.filter(c => c.isLetterOrDigit || c.isSpaceChar).split(' '): Seq[String]).future).
           foldl(Map[String,Int]().withDefaultValue(0).pure[Future])((fr, fn) => (fn <**> fr)(_.foldl(_)((r,s) => r + (s -> (r(s) + 1)))))
 
-      bench("Wordcount")(wordcount(lines).getOrThrow) should (have size (28344) and contain ("shakespeare", 268))
+      def akkawordcount(in: Iterable[String]) =
+        Futures.fold(Map[String,Int]().withDefaultValue(0))(in.map(((_: String).toLowerCase.filter(c => c.isLetterOrDigit || c.isSpaceChar).split(' '): Seq[String]).future))((r, ns) => ns.foldLeft(r)((r,s) => r + (s -> (r(s) + 1))))
+        
+
+      bench("Scalaz Wordcount")(wordcount(lines).getOrThrow) should (have size (28344) and contain ("shakespeare", 268))
+      bench("Akka Wordcount")(wordcount(lines).getOrThrow) should (have size (28344) and contain ("shakespeare", 268))
+      bench("Scalaz Wordcount")(wordcount(lines).getOrThrow) should (have size (28344) and contain ("shakespeare", 268))
+      bench("Akka Wordcount")(wordcount(lines).getOrThrow) should (have size (28344) and contain ("shakespeare", 268))
+      bench("Scalaz Wordcount")(wordcount(lines).getOrThrow) should (have size (28344) and contain ("shakespeare", 268))
+      bench("Akka Wordcount")(wordcount(lines).getOrThrow) should (have size (28344) and contain ("shakespeare", 268))
+      bench("Scalaz Wordcount")(wordcount(lines).getOrThrow) should (have size (28344) and contain ("shakespeare", 268))
+      bench("Akka Wordcount")(wordcount(lines).getOrThrow) should (have size (28344) and contain ("shakespeare", 268))
+      bench("Scalaz Wordcount")(wordcount(lines).getOrThrow) should (have size (28344) and contain ("shakespeare", 268))
+      bench("Akka Wordcount")(wordcount(lines).getOrThrow) should (have size (28344) and contain ("shakespeare", 268))
     }
   }
 

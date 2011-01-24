@@ -1,6 +1,6 @@
 import sbt._
 
-class AkkaScalazProject(info: ProjectInfo) extends DefaultProject(info) with AkkaProject {
+class AkkaScalazProject(info: ProjectInfo) extends DefaultProject(info) {
 
   override def compileOptions = Optimize :: Unchecked :: super.compileOptions.toList
 

@@ -28,7 +28,7 @@ package object futures extends Futures
   }
 
   object HawtQueue extends Exec {
-    import org.fusesource.hawtdispatch.ScalaDispatch._
+    import org.fusesource.hawtdispatch._
     val queue = globalQueue
     def apply(f: => Unit): Unit = queue(f)
   }
