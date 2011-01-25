@@ -50,6 +50,11 @@ class AkkaFuturesSpec extends WordSpec with ShouldMatchers with Checkers with Lo
     "satisfy the law of associativity" in check(associative[Future[Int]])
   }
 
+  "the future monoid" should {
+    import ScalazProperties.Monoid._
+    "satisfy the law of identity" in check(identity[Future[Int]])
+  }
+
   "examples of future usage" should {
     "have scalaz functor instance" in {
       val f1 = f(5 * 5)
