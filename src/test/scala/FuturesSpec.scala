@@ -45,6 +45,11 @@ class AkkaFuturesSpec extends WordSpec with ShouldMatchers with Checkers with Lo
     "satisfy the law of interchange" in check(interchange[Future, Int, Int])
   }
 
+  "the future semigroup" should {
+    import ScalazProperties.Semigroup._
+    "satisfy the law of associativity" in check(associative[Future[Int]])
+  }
+
   "examples of future usage" should {
     "have scalaz functor instance" in {
       val f1 = f(5 * 5)
