@@ -5,7 +5,6 @@ import Scalaz._
 
 import akka.actor.Actor.TIMEOUT
 import akka.dispatch.{Future, DefaultCompletableFuture}
-import akka.config.Config._
 
 import java.util.concurrent.TimeUnit
 
@@ -18,30 +17,9 @@ package object futures extends Futures
     with conversions.Function0s
     with conversions.Function1s {
 
-  sealed trait Exec {
-    def apply(f: => Unit): Unit
-  }
-
-  object AkkaSpawn extends Exec {
-    import akka.actor.Actor.spawn
-    def apply(f: => Unit): Unit = spawn(f)
-  }
-
-  object HawtQueue extends Exec {
-    import org.fusesource.hawtdispatch.ScalaDispatch._
-    val queue = globalQueue
-    def apply(f: => Unit): Unit = queue(f)
-  }
-
-  private val exec: Exec = config.getString("akka.scalaz.executer", "akka") match {
-    case "akka" => AkkaSpawn
-    case "hawt" => HawtQueue
-    case _ => error("Invalid config for akka.scalaz.executer")
-  }
-
   def nanosToMillis(in: Long): Long = TimeUnit.NANOSECONDS.toMillis(in)
 
-  implicit object FutureFunctor extends Functor[Future] {
+  implicit def FutureFunctor(implicit exec: FutureExecuter) = new Functor[Future] {
     def fmap[A, B](r: Future[A], f: A => B): Future[B] = {
       val fb = new DefaultCompletableFuture[B](nanosToMillis(r.timeoutInNanos))
       r onComplete (fa => fa.result.cata(a => exec(try {fb.completeWithResult(f(a))} catch {case e => fb.completeWithException(e)}),
@@ -50,7 +28,7 @@ package object futures extends Futures
     }
   }
 
-  implicit object FutureBind extends Bind[Future] {
+  implicit def FutureBind(implicit exec: FutureExecuter) = new Bind[Future] {
     def bind[A, B](r: Future[A], f: A => Future[B]) = {
       val fb = new DefaultCompletableFuture[B](nanosToMillis(r.timeoutInNanos))
       r onComplete (fa => fa.result.cata(a => exec(try {f(a).onComplete(fb.completeWith(_))} catch {case e => fb.completeWithException(e)}),
@@ -59,7 +37,7 @@ package object futures extends Futures
     }
   }
 
-  implicit object FuturePure extends Pure[Future] {
+  implicit def FuturePure(implicit exec: FutureExecuter) = new Pure[Future] {
     def pure[A](a: => A) = {
       val f = new DefaultCompletableFuture[A](TIMEOUT)
       exec(try {f.completeWithResult(a)} catch {case e => f.completeWithException(e)})
@@ -67,20 +45,20 @@ package object futures extends Futures
     }
   }
 
-  implicit val FutureApply = FunctorBindApply[Future]
+  implicit def FutureApply(implicit exec: FutureExecuter) = FunctorBindApply[Future]
 
-  implicit object FutureEach extends Each[Future] {
-    def each[A](e: Future[A], f: A => Unit) = e onComplete (_.result foreach f)
+  implicit def FutureEach(implicit exec: FutureExecuter) = new Each[Future] {
+    def each[A](e: Future[A], f: A => Unit) = e onComplete (_.result foreach (r => exec(f(r))))
   }
 
-  implicit def FutureSemigroup[A: Semigroup]: Semigroup[Future[A]] =
+  implicit def FutureSemigroup[A](implicit exec: FutureExecuter, smA: Semigroup[A]): Semigroup[Future[A]] =
     semigroup ((fa, fb) => (fa <**> fb)(_ |+| _))
 
-  implicit def FutureZero[A: Zero]: Zero[Future[A]] = zero(∅[A].pure[Future])
+  implicit def FutureZero[A](implicit exec: FutureExecuter, zeroA: Zero[A]): Zero[Future[A]] = zero(∅[A].pure[Future])
 
-  def futureMap[M[_], A, B](ma: M[A])(f: A => B)(implicit t: Traverse[M]): Future[M[B]] =
+  def futureMap[M[_], A, B](ma: M[A])(f: A => B)(implicit t: Traverse[M], exec: FutureExecuter): Future[M[B]] =
     ma ∘ (f.future) sequence
 
-  def futureBind[M[_], A, B](ma: M[A])(f: A => M[B])(implicit m: Monad[M], t: Traverse[M]): Future[M[B]] =
+  def futureBind[M[_], A, B](ma: M[A])(f: A => M[B])(implicit m: Monad[M], t: Traverse[M], exec: FutureExecuter): Future[M[B]] =
     futureMap(ma)(f).map(_.join)
 }

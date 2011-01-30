@@ -130,7 +130,8 @@ class AkkaFuturesSpec extends WordSpec with ShouldMatchers with Checkers with Lo
 
     "have a resetable timeout" in {
       f("test").timeout(100).getOrThrow should equal ("test")
-      evaluating (f({Thread.sleep(500);"test"}).timeout(100).getOrThrow) should produce[FutureTimeoutException]
+      if (FutureExecuter.DefaultExecuter != executer.InlineExecuter)
+        evaluating (f({Thread.sleep(500);"test"}).timeout(100).getOrThrow) should produce[FutureTimeoutException]
     }
 
     "convert to Validation" in {
