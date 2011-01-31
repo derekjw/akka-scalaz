@@ -244,22 +244,6 @@ class AkkaFuturesSpec extends WordSpec with ShouldMatchers with Checkers with Lo
 
       qsort(list).getOrThrow should equal (list.sorted)
     }
-
-    "shakespeare wordcount" in {
-      val reader = new java.io.BufferedReader(new java.io.InputStreamReader(getClass.getClassLoader.getResourceAsStream("shakespeare.txt")))
-
-      val lines = try {
-        Stream.continually(Option(reader.readLine)).filterNot(_ == Some("")).takeWhile(_.isDefined).grouped(500).map(_.flatten.mkString(" ")).toList
-      } finally {
-        reader.close
-      }
-
-      def wordcount[M[_]: Monad: Foldable](in: M[String]) =
-        in.map(((_: String).toLowerCase.filter(c => c.isLetterOrDigit || c.isSpaceChar).split(' '): Seq[String]).future).
-      foldl(Map[String,Int]().withDefaultValue(0).pure[Future])((fr, fn) => (fn <**> fr)(_.foldl(_)((r,s) => r + (s -> (r(s) + 1)))))
-
-      bench("Wordcount")(wordcount(lines).getOrThrow) should (have size (28344) and contain ("shakespeare", 268))
-    }
   }
 
   def aConcurrentFuture(implicit exec: FutureExecuter) {
@@ -269,14 +253,6 @@ class AkkaFuturesSpec extends WordSpec with ShouldMatchers with Checkers with Lo
       f("test").timeout(100).getOrThrow should equal ("test")
       evaluating (f({Thread.sleep(500);"test"}).timeout(100).getOrThrow) should produce[FutureTimeoutException]
     }
-  }
-
-  def bench[A](name: String)(a: => A): A = {
-    val startTime = System.currentTimeMillis
-    val result = a
-    val endTime = System.currentTimeMillis
-    log.info("%s took %dms", name, endTime - startTime)
-    result
   }
 }
 
