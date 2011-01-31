@@ -6,7 +6,7 @@ class AkkaScalazProject(info: ProjectInfo) extends DefaultProject(info) with Akk
 
   val scalazCore = "com.googlecode.scalaz" %% "scalaz-core" % "5.1-SNAPSHOT"
   val scalazScalacheck = "com.googlecode.scalaz" %% "scalaz-scalacheck-binding" % "5.1-SNAPSHOT" % "test"
-  val scalatest = "org.scalatest" % "scalatest" % "1.2.1-SNAPSHOT" % "test"
+  val scalatest = "org.scalatest" % "scalatest" % "1.2" % "test"
 
   //override def testOptions = TestArgument(TestFrameworks.ScalaTest, "-oD") :: super.testOptions.toList
 

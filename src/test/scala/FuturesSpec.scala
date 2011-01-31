@@ -18,44 +18,68 @@ import Actor._
 import akka.util.Logging
 
 class AkkaFuturesSpec extends WordSpec with ShouldMatchers with Checkers with Logging {
-  def f[A](a: => A) = (() => a).future
+
+  def f[A](a: => A)(implicit p: Pure[Future]) = (() => a).future(p)
 
   implicit def FutureEqual[A: Equal] = Scalaz.equal[Future[A]]((a1,a2) => a1.getOrThrow ≟ a2.getOrThrow)
 
-  implicit def FutureArbitrary[A: Arbitrary]: Arbitrary[Future[A]] = implicitly[Arbitrary[A]] map ((a: A) => f(a))
+  implicit def FutureArbitrary[A](implicit arb: Arbitrary[A], p: Pure[Future]): Arbitrary[Future[A]] = arb map ((a: A) => f(a)(p))
 
-  "the future functor" should {
+  "A Future" when {
+    "using InlineExecuter" should {
+      import executer.InlineExecuter
+      behave like aFuture
+    }
+
+    "using SpawnExecuter" should {
+      import executer.SpawnExecuter
+      behave like aConcurrentFuture
+    }
+
+    "using HawtExecuter" should {
+      import executer.HawtExecuter
+      behave like aConcurrentFuture
+    }
+  }
+
+  def aFunctor(implicit exec: FutureExecuter)  {
     import ScalazProperties.Functor._
-    "satisfy the law of identity" in check(identity[Future, Int])
-    "satisfy the law of associativity" in check(associative[Future, Int, Int, Int])
+    "satisfy the functor law of identity" in check(identity[Future, Int])
+    "satisfy the functor law of associativity" in check(associative[Future, Int, Int, Int])
   }
 
-  "the future monad" should {
+  def aMonad(implicit exec: FutureExecuter) {
     import ScalazProperties.Monad._
-    "satisfy the law of left identity" in check(leftIdentity[Future, Int, Int])
-    "satisfy the law of right identity" in check(rightIdentity[Future, Int])
-    "satisfy the law of associativity" in check(associativity[Future, Int, Int, Int])
+    "satisfy the monad law of left identity" in check(leftIdentity[Future, Int, Int])
+    "satisfy the monad law of right identity" in check(rightIdentity[Future, Int])
+    "satisfy the monad law of associativity" in check(associativity[Future, Int, Int, Int])
   }
 
-  "the future applicative functor" should {
+  def anApplicative(implicit exec: FutureExecuter) {
     import ScalazProperties.Applicative._
-    "satisfy the law of identity" in check(identity[Future, Int])
-    "satisfy the law of composition" in check(composition[Future, Int, Int, Int])
-    "satisfy the law of homomorphism" in check(homomorphism[Future, Int, Int])
-    "satisfy the law of interchange" in check(interchange[Future, Int, Int])
+    "satisfy the applicative law of identity" in check(identity[Future, Int])
+    "satisfy the applicative law of composition" in check(composition[Future, Int, Int, Int])
+    "satisfy the applicative law of homomorphism" in check(homomorphism[Future, Int, Int])
+    "satisfy the applicative law of interchange" in check(interchange[Future, Int, Int])
   }
 
-  "the future semigroup" should {
+  def aSemigroup(implicit exec: FutureExecuter) {
     import ScalazProperties.Semigroup._
-    "satisfy the law of associativity" in check(associative[Future[Int]])
+    "satisfy the semigroup law of associativity" in check(associative[Future[Int]])
   }
 
-  "the future monoid" should {
+  def aMonoid(implicit exec: FutureExecuter) {
     import ScalazProperties.Monoid._
-    "satisfy the law of identity" in check(identity[Future[Int]])
+    "satisfy the monoid law of identity" in check(identity[Future[Int]])
   }
 
-  "examples of future usage" should {
+  def aFuture(implicit exec: FutureExecuter) {
+    behave like aFunctor
+    behave like aMonad
+    behave like anApplicative
+    behave like aSemigroup
+    behave like aMonoid
+
     "have scalaz functor instance" in {
       val f1 = f(5 * 5)
       val f2 = f1 ∘ (_ * 2)
@@ -126,12 +150,6 @@ class AkkaFuturesSpec extends WordSpec with ShouldMatchers with Checkers with Lo
     "fold into a future" in {
       val list = (1 to 100).toList
       list.foldLeftM(0)((b,a) => f(b + a)).getOrThrow should equal (5050)
-    }
-
-    "have a resetable timeout" in {
-      f("test").timeout(100).getOrThrow should equal ("test")
-      if (FutureExecuter.DefaultExecuter != executer.InlineExecuter)
-        evaluating (f({Thread.sleep(500);"test"}).timeout(100).getOrThrow) should produce[FutureTimeoutException]
     }
 
     "convert to Validation" in {
@@ -238,9 +256,18 @@ class AkkaFuturesSpec extends WordSpec with ShouldMatchers with Checkers with Lo
 
       def wordcount[M[_]: Monad: Foldable](in: M[String]) =
         in.map(((_: String).toLowerCase.filter(c => c.isLetterOrDigit || c.isSpaceChar).split(' '): Seq[String]).future).
-          foldl(Map[String,Int]().withDefaultValue(0).pure[Future])((fr, fn) => (fn <**> fr)(_.foldl(_)((r,s) => r + (s -> (r(s) + 1)))))
+      foldl(Map[String,Int]().withDefaultValue(0).pure[Future])((fr, fn) => (fn <**> fr)(_.foldl(_)((r,s) => r + (s -> (r(s) + 1)))))
 
       bench("Wordcount")(wordcount(lines).getOrThrow) should (have size (28344) and contain ("shakespeare", 268))
+    }
+  }
+
+  def aConcurrentFuture(implicit exec: FutureExecuter) {
+    behave like aFuture
+
+    "have a resetable timeout" in {
+      f("test").timeout(100).getOrThrow should equal ("test")
+      evaluating (f({Thread.sleep(500);"test"}).timeout(100).getOrThrow) should produce[FutureTimeoutException]
     }
   }
 
