@@ -9,7 +9,7 @@ import akka.dispatch.Future
 sealed trait Function1W[T, R] {
   val k: T => R
 
-  def future: Kleisli[Future, T, R] = k.kleisli[Future]
+  def future(implicit p: Pure[Future]): Kleisli[Future, T, R] = k.kleisli(p)
 }
 
 trait Function1s {
