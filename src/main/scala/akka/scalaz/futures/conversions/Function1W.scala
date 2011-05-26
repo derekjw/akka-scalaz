@@ -4,12 +4,12 @@ package conversions
 import scalaz._
 import Scalaz._
 
-import akka.dispatch.Future
+import akka.dispatch.{ Future, MessageDispatcher }
 
 sealed trait Function1W[T, R] {
   val k: T => R
 
-  def future(implicit p: Pure[Future]): Kleisli[Future, T, R] = k.kleisli(p)
+  def future(implicit dispatcher: MessageDispatcher): Kleisli[Future, T, R] = Scalaz.kleisli((t: T) => Future(k(t)))
 }
 
 trait Function1s {
