@@ -17,37 +17,60 @@ package object futures extends Futures
     with conversions.Function0s
     with conversions.Function1s {
 
-  implicit def FutureFunctor = new Functor[Future] {
-    def fmap[A, B](r: Future[A], f: A => B): Future[B] = r map f
+  implicit val FutureFunctor = new Functor[Future] {
+    def fmap[A, B](f: A => B) = _ map f
   }
 
-  implicit def FutureBind = new Bind[Future] {
-    def bind[A, B](r: Future[A], f: A => Future[B]) = r flatMap f
+  implicit val FutureBind = new Bind[Future] {
+    def bind[A, B](f: A => Future[B]) = _ flatMap f
   }
 
-  implicit def FuturePure = new Pure[Future] {
-    def pure[A](a: => A): Future[A] =
+  implicit val FuturePointed = new Pointed[Future] {
+    def point[A](a: => A): Future[A] =
       new KeptPromise[A](try { Right(a) } catch { case e => Left(e) })
   }
 
-  implicit def FutureEach = new Each[Future] {
-    def each[A](e: Future[A], f: A => Unit) = e foreach f
+  implicit val FuturePointedFunctor = PointedFunctor.pointedFunctor[Future]
+
+  implicit val FutureApplic = new Applic[Future] {
+    def applic[A, B](f: Future[A => B]) =
+      a => f flatMap (a map _)
   }
 
-  implicit def FuturePlus = new Plus[Future] {
-    def plus[A](a1: Future[A], a2: => Future[A]): Future[A] = a1 orElse a2
+  implicit val FutureApplicFunctor = ApplicFunctor.applicFunctor[Future]
+
+  implicit val FutureApplicative = Applicative.applicative[Future]
+
+  implicit val FutureMonad = Monad.monadBP[Future]
+
+  implicit val FutureEach = new Each[Future] {
+    def each[A](f: A => Unit) = _ foreach f
+  }
+
+  implicit val FuturePlus = new Plus[Future] {
+    def plus[A](a1: Future[A], a2: => Future[A]): Future[A] =
+      (a1 map (r => new KeptPromise[A](Right(r))) recover {
+        case e: Exception => (a2 recover { case _ => throw e })
+      }).join
+
   }
 
   implicit def FutureSemigroup[A: Semigroup]: Semigroup[Future[A]] =
-    semigroup((fa, fb) => (fa <**> fb)(_ |+| _))
+    semigroup(fa => fb => for (a <- fa; b <- fb) yield (a |+| b))
 
-  implicit def FutureZero[A: Zero]: Zero[Future[A]] = zero(∅[A].pure[Future])
+  implicit def FutureZero[A: Zero]: Zero[Future[A]] = zero(∅[A].point[Future])
 
-  implicit def FutureCojoin: Cojoin[Future] = new Cojoin[Future] {
-    def cojoin[A](a: Future[A]) = a.pure[Future]
+  implicit def FutureMonoid[A](implicit m: Monoid[A]) = {
+    implicit val s = m.semigroup
+    implicit val z = m.zero
+    Monoid.monoid[Future[A]]
   }
 
-  implicit def FutureCopure: Copure[Future] = new Copure[Future] {
-    def copure[A](a: Future[A]) = a.get
+  implicit def FutureCoJoin: CoJoin[Future] = new CoJoin[Future] {
+    def coJoin[A] = _.point[Future]
+  }
+
+  implicit def FutureCoPointed: CoPointed[Future] = new CoPointed[Future] {
+    def coPoint[A] = _.get
   }
 }

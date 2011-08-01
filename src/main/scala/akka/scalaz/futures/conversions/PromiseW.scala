@@ -6,13 +6,15 @@ import Scalaz._
 
 import akka.dispatch.Promise
 
-sealed trait PromiseW[A] extends PimpedType[Promise[A]] {
+sealed trait PromiseW[A] {
+  def underlying: Promise[A]
+
   def complete(validation: Validation[Throwable, A]): Unit =
-    value.complete(validation.either)
+    underlying.complete(validation.either)
 }
 
 trait Promises {
   implicit def PromiseTo[A](f: Promise[A]): PromiseW[A] = new PromiseW[A] {
-    val value = f
+    val underlying = f
   }
 }
