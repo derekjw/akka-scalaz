@@ -10,7 +10,7 @@ import akka.actor.ActorRef
 sealed trait ActorRefW {
   def underlying: ActorRef
 
-  def future: Any => Future[Any] = underlying ? _
+  def future: Kleisli[Any, Future, Any] = kleisli(underlying ? _)
 }
 
 trait ActorRefs {

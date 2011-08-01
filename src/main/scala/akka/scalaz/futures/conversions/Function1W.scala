@@ -9,7 +9,8 @@ import akka.dispatch.{ Future, MessageDispatcher }
 sealed trait Function1W[T, R] {
   val k: T => R
 
-  def future(implicit dispatcher: MessageDispatcher): T => Future[R] = t => Future(k(t))
+  def future(implicit dispatcher: MessageDispatcher): Kleisli[T, Future, R] = kleisli(x => Future(k(x)))
+
 }
 
 trait Function1s {

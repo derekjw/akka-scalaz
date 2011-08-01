@@ -156,9 +156,9 @@ class AkkaFuturesSpec extends WordSpec with ShouldMatchers with Checkers {
     }
 
     "compose" in {
-      val f = Kleisli(((_: String).toInt).future)
-      val g = Kleisli(((_: Int) * 2).future)
-      val h = Kleisli(((_: Int) * 10).future)
+      val f = ((_: String).toInt).future
+      val g = ((_: Int) * 2).future
+      val h = ((_: Int) * 10).future
 
       (f run "3" get) should equal(3)
       (f >=> g run "3" get) should equal(6)
@@ -173,8 +173,8 @@ class AkkaFuturesSpec extends WordSpec with ShouldMatchers with Checkers {
     "compose with actors" in {
       val a1 = actorOf[DoubleActor].start
       val a2 = actorOf[ToStringActor].start
-      val k1 = Kleisli(a1.future)
-      val k2 = Kleisli(a2.future)
+      val k1 = a1.future
+      val k2 = a2.future
       val l = (1 to 5).toList
 
       //a1(5).get should equal(10)
@@ -182,16 +182,16 @@ class AkkaFuturesSpec extends WordSpec with ShouldMatchers with Checkers {
       (l traverse k1.run).get should equal(List(2, 4, 6, 8, 10))
       (l traverse (k1 >=> k2).run).get should equal(List("Int: 2", "Int: 4", "Int: 6", "Int: 8", "Int: 10"))
 
-      val f = Kleisli(((_: String).toInt).future)
-      val g = Kleisli(((_: Int) * 2).future)
-      val h = Kleisli(((_: Int) * 10).future)
+      val f = ((_: String).toInt).future
+      val g = ((_: Int) * 2).future
+      val h = ((_: Int) * 10).future
 
-      val fn = (n: Int) => (k1 >=> k2) run n collect {
+      val fn = (f >=> g) <=< (k1 >=> k2 map {
         case "Int: 10" => "10"
         case _         => "failure"
-      } >>= (f >=> g).run
-      fn(5).get should equal(20)
-      evaluating(fn(10).get) should produce[NumberFormatException]
+      })
+      fn.run(5).get should equal(20)
+      evaluating(fn.run(10).get) should produce[NumberFormatException]
 
       a1.stop
       a2.stop
